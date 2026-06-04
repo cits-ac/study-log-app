@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 
 // ─── SM-2 algorithm ───────────────────────────────────────────────────────────
 function sm2NextInterval(prevInterval, prevEF, quality) {
-  // quality: 0-5 (we map user 1-4 → 0,2,3,5)
   const qMap = { 1: 0, 2: 2, 3: 3, 4: 5 };
   const q = qMap[quality] ?? 3;
   let ef = Math.max(1.3, prevEF + 0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
@@ -34,78 +33,54 @@ function daysUntil(dateStr) {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
-// ─── Initial demo data ────────────────────────────────────────────────────────
-const DEMO_LOGS = [
-  {
-    id: "1",
-    date: addDays(today(), -8),
-    subject: "英語",
-    content: "英単語 p.30〜50 / 副詞の使い方を復習",
-    tags: ["英語", "単語"],
-    interval: 8,
-    ef: 2.5,
-    nextReview: today(),
-    reviewCount: 1,
-  },
-  {
-    id: "2",
-    date: addDays(today(), -3),
-    subject: "Python",
-    content: "リスト内包表記・ラムダ関数・mapの使い方",
-    tags: ["Python", "プログラミング"],
-    interval: 3,
-    ef: 2.5,
-    nextReview: today(),
-    reviewCount: 1,
-  },
-  {
-    id: "3",
-    date: addDays(today(), -1),
-    subject: "世界史",
-    content: "フランス革命の流れ・主要人物まとめ",
-    tags: ["世界史", "試験"],
-    interval: 1,
-    ef: 2.5,
-    nextReview: addDays(today(), 1),
-    reviewCount: 0,
-  },
-  {
-    id: "4",
-    date: addDays(today(), -14),
-    subject: "英語",
-    content: "関係代名詞の総復習・that vs which",
-    tags: ["英語", "文法"],
-    interval: 14,
-    ef: 2.6,
-    nextReview: addDays(today(), 2),
-    reviewCount: 2,
-  },
-];
+// ─── DB <-> App 変換 ──────────────────────────────────────────────────────────
+function fromDB(log) {
+  return { ...log, nextReview: log.next_review, reviewCount: log.review_count };
+}
+
+function toDB(log) {
+  return {
+    id: log.id,
+    date: log.date,
+    subject: log.subject,
+    content: log.content,
+    tags: log.tags,
+    interval: log.interval,
+    ef: log.ef,
+    next_review: log.nextReview,
+    review_count: log.reviewCount,
+  };
+}
+
+// ─── API calls ────────────────────────────────────────────────────────────────
+async function apiFetchLogs() {
+  const res = await fetch("/api/logs");
+  if (!res.ok) throw new Error("fetch failed");
+  return (await res.json()).map(fromDB);
+}
+
+async function apiCreateLog(log) {
+  const res = await fetch("/api/logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(toDB(log)),
+  });
+  if (!res.ok) throw new Error("create failed");
+  return fromDB(await res.json());
+}
+
+async function apiUpdateLog(log) {
+  await fetch("/api/logs", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(toDB(log)),
+  });
+}
+
 
 const SUBJECTS = ["英語", "Python", "世界史", "数学", "化学", "その他"];
 
-// ─── AI feedback via Anthropic API ───────────────────────────────────────────
-async function getAIFeedback(log) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "user",
-          content: `あなたは学習コーチです。以下の学習記録に対して、復習のポイントと覚えておくべき重要事項を2〜3文で日本語でアドバイスしてください。簡潔に。\n\n科目: ${log.subject}\n学習内容: ${log.content}\nタグ: ${log.tags.join(", ")}`,
-        },
-      ],
-    }),
-  });
-  const d = await res.json();
-  return d.content?.map((b) => b.text || "").join("") || "フィードバックを取得できませんでした。";
-}
-
 // ─── Components ───────────────────────────────────────────────────────────────
-
 function Badge({ children, color = "gray" }) {
   const colors = {
     gray: { bg: "#f0ede8", text: "#5f5e5a" },
@@ -131,7 +106,7 @@ function DueLabel({ nextReview }) {
   return <Badge color="gray">{d}日後</Badge>;
 }
 
-function ReviewCard({ log, onRate, onAI, aiText, aiLoading }) {
+function ReviewCard({ log, onRate }) {
   return (
     <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 14, padding: "16px", marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
@@ -146,17 +121,7 @@ function ReviewCard({ log, onRate, onAI, aiText, aiLoading }) {
         <span style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginLeft: 4, alignSelf: "center" }}>学習日: {log.date} · {log.reviewCount}回復習済</span>
       </div>
 
-      {!aiText && (
-        <button onClick={() => onAI(log)} disabled={aiLoading} style={{ fontSize: 12, color: "var(--color-text-info, #185fa5)", background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 10, opacity: aiLoading ? 0.5 : 1 }}>
-          {aiLoading ? "AIアドバイス取得中..." : "✦ AIアドバイスを見る"}
-        </button>
-      )}
-      {aiText && (
-        <div style={{ background: "var(--color-background-secondary)", borderRadius: 8, padding: "10px 12px", fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.65, marginBottom: 12 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-text-info, #185fa5)", marginRight: 6, letterSpacing: "0.05em" }}>AI</span>
-          {aiText}
-        </div>
-      )}
+      {/* AI フィードバック: APIキー設定後に有効化 */}
 
       <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 6 }}>どれくらい覚えていましたか？</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
@@ -180,60 +145,39 @@ function ReviewCard({ log, onRate, onAI, aiText, aiLoading }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("today");
-  const [logs, setLogs] = useState(DEMO_LOGS);
-  const [aiMap, setAiMap] = useState({});
-  const [aiLoading, setAiLoading] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [ratedToday, setRatedToday] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLog, setNewLog] = useState({ subject: "英語", content: "", tags: "" });
   const [savedMsg, setSavedMsg] = useState("");
   const [notifEnabled, setNotifEnabled] = useState(false);
 
-  // Load from storage
   useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get("study-logs");
-        if (r) setLogs(JSON.parse(r.value));
-      } catch {}
-    })();
-  }, []);
-
-  const saveLogs = useCallback(async (updated) => {
-    setLogs(updated);
-    try { await window.storage.set("study-logs", JSON.stringify(updated)); } catch {}
+    apiFetchLogs()
+      .then(setLogs)
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const dueToday = logs.filter((l) => daysUntil(l.nextReview) <= 0 && !ratedToday[l.id]);
   const upcoming = logs.filter((l) => daysUntil(l.nextReview) > 0).sort((a, b) => new Date(a.nextReview) - new Date(b.nextReview));
   const allLogs = [...logs].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  const handleRate = (id, quality) => {
+  const handleRate = async (id, quality) => {
     const log = logs.find((l) => l.id === id);
     if (!log) return;
     const { interval, ef } = sm2NextInterval(log.interval, log.ef, quality);
-    const updated = logs.map((l) =>
-      l.id === id ? { ...l, interval, ef, nextReview: addDays(today(), interval), reviewCount: (l.reviewCount || 0) + 1 } : l
-    );
-    saveLogs(updated);
+    const updated = { ...log, interval, ef, nextReview: addDays(today(), interval), reviewCount: (log.reviewCount || 0) + 1 };
+    setLogs((prev) => prev.map((l) => l.id === id ? updated : l));
     setRatedToday((p) => ({ ...p, [id]: true }));
+    try { await apiUpdateLog(updated); } catch {}
   };
 
-  const handleAI = async (log) => {
-    setAiLoading(log.id);
-    try {
-      const text = await getAIFeedback(log);
-      setAiMap((p) => ({ ...p, [log.id]: text }));
-    } catch {
-      setAiMap((p) => ({ ...p, [log.id]: "取得に失敗しました。" }));
-    }
-    setAiLoading(null);
-  };
 
-  const handleAddLog = () => {
+  const handleAddLog = async () => {
     if (!newLog.content.trim()) return;
     const entry = {
-      id: Date.now().toString(),
       date: today(),
       subject: newLog.subject,
       content: newLog.content.trim(),
@@ -243,11 +187,14 @@ export default function App() {
       nextReview: addDays(today(), 1),
       reviewCount: 0,
     };
-    saveLogs([entry, ...logs]);
-    setNewLog({ subject: "英語", content: "", tags: "" });
-    setShowAddForm(false);
-    setSavedMsg("記録しました！次回復習: 明日");
-    setTimeout(() => setSavedMsg(""), 3000);
+    try {
+      const created = await apiCreateLog(entry);
+      setLogs((prev) => [created, ...prev]);
+      setNewLog({ subject: "英語", content: "", tags: "" });
+      setShowAddForm(false);
+      setSavedMsg("記録しました！次回復習: 明日");
+      setTimeout(() => setSavedMsg(""), 3000);
+    } catch {}
   };
 
   const requestNotif = async () => {
@@ -269,6 +216,14 @@ export default function App() {
     }
     return streak;
   })();
+
+  if (loading) {
+    return (
+      <div style={{ maxWidth: 420, margin: "0 auto", padding: "60px 16px", fontFamily: "'Noto Sans JP', 'Hiragino Sans', sans-serif", textAlign: "center" }}>
+        <div style={{ fontSize: 13, color: "var(--color-text-tertiary)" }}>読み込み中...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 0 40px", fontFamily: "'Noto Sans JP', 'Hiragino Sans', sans-serif" }}>
@@ -340,7 +295,7 @@ export default function App() {
               </div>
             ) : (
               dueToday.map((log) => (
-                <ReviewCard key={log.id} log={log} onRate={handleRate} onAI={handleAI} aiText={aiMap[log.id]} aiLoading={aiLoading === log.id} />
+                <ReviewCard key={log.id} log={log} onRate={handleRate} />
               ))
             )}
           </div>
@@ -350,7 +305,6 @@ export default function App() {
         {tab === "schedule" && (
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 10 }}>復習スケジュール</div>
-            {/* Forgetting curve mini-viz */}
             <div style={{ background: "var(--color-background-secondary)", borderRadius: 12, padding: "14px", marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>忘却曲線イメージ</div>
               <svg viewBox="0 0 300 80" style={{ width: "100%", height: 80 }}>
