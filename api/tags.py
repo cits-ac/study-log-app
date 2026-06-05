@@ -1,4 +1,5 @@
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 import json
 import os
 import sys
@@ -10,7 +11,7 @@ from _utils import service_client, verify_token
 class handler(BaseHTTPRequestHandler):
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
     def _json(self, status, data):
@@ -41,15 +42,12 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        user_id, role = self._auth()
+        user_id, _ = self._auth()
         if not user_id:
             return
         try:
             sb = service_client()
-            q = sb.table("study_logs").select("*").order("created_at", desc=True)
-            if role != "admin":
-                q = q.eq("user_id", user_id)
-            result = q.execute()
+            result = sb.table("tags").select("*").eq("user_id", user_id).order("created_at").execute()
             self._json(200, result.data)
         except Exception as e:
             self._json(500, {"error": str(e)})
@@ -60,43 +58,55 @@ class handler(BaseHTTPRequestHandler):
             return
         try:
             body = self._body()
+            name = body.get("name", "").strip()
+            if not name:
+                self._json(400, {"error": "タグ名は必須です"})
+                return
             sb = service_client()
-            result = sb.table("study_logs").insert({
-                "date": body["date"],
-                "subject": body.get("subject"),
-                "content": body["content"],
-                "book": body.get("book"),
-                "topic": body.get("topic"),
-                "page_from": body.get("page_from"),
-                "page_to": body.get("page_to"),
-                "tags": body.get("tags", []),
-                "interval": body.get("interval", 1),
-                "ef": body.get("ef", 2.5),
-                "next_review": body["next_review"],
-                "review_count": body.get("review_count", 0),
-                "user_id": user_id,
-            }).execute()
+            result = sb.table("tags").insert({"user_id": user_id, "name": name}).execute()
             self._json(201, result.data[0])
         except Exception as e:
             self._json(500, {"error": str(e)})
 
     def do_PUT(self):
-        user_id, role = self._auth()
+        user_id, _ = self._auth()
         if not user_id:
             return
         try:
             body = self._body()
+            sid = body.get("id")
+            name = body.get("name", "").strip()
+            if not sid or not name:
+                self._json(400, {"error": "idと名前は必須です"})
+                return
             sb = service_client()
-            q = sb.table("study_logs").update({
-                "interval": body["interval"],
-                "ef": body["ef"],
-                "next_review": body["next_review"],
-                "review_count": body["review_count"],
-            }).eq("id", body["id"])
-            if role != "admin":
-                q = q.eq("user_id", user_id)
-            result = q.execute()
-            self._json(200, result.data[0] if result.data else {})
+            result = (
+                sb.table("tags")
+                .update({"name": name})
+                .eq("id", sid)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if not result.data:
+                self._json(404, {"error": "タグが見つかりません"})
+                return
+            self._json(200, result.data[0])
+        except Exception as e:
+            self._json(500, {"error": str(e)})
+
+    def do_DELETE(self):
+        user_id, _ = self._auth()
+        if not user_id:
+            return
+        try:
+            qs = parse_qs(urlparse(self.path).query)
+            sid = qs.get("id", [None])[0]
+            if not sid:
+                self._json(400, {"error": "idが必要です"})
+                return
+            sb = service_client()
+            sb.table("tags").delete().eq("id", sid).eq("user_id", user_id).execute()
+            self._json(200, {"message": "削除しました"})
         except Exception as e:
             self._json(500, {"error": str(e)})
 

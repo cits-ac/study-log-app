@@ -120,41 +120,6 @@ async function apiUpdateLog(log, token) {
   });
 }
 
-async function apiFetchSubjects(token) {
-  const res = await fetch("/api/subjects", { headers: authHeaders(token) });
-  if (!res.ok) return [];
-  return res.json();
-}
-
-async function apiAddSubject(name, token) {
-  const res = await fetch("/api/subjects", {
-    method: "POST",
-    headers: authHeaders(token),
-    body: JSON.stringify({ name }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `追加に失敗しました (${res.status})`);
-  return data;
-}
-
-async function apiEditSubject(id, name, token) {
-  const res = await fetch("/api/subjects", {
-    method: "PUT",
-    headers: authHeaders(token),
-    body: JSON.stringify({ id, name }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `更新に失敗しました (${res.status})`);
-  return data;
-}
-
-async function apiDeleteSubject(id, token) {
-  await fetch(`/api/subjects?id=${id}`, {
-    method: "DELETE",
-    headers: authHeaders(token),
-  });
-}
-
 async function apiFetchBooks(token) {
   const res = await fetch("/api/books", { headers: authHeaders(token) });
   if (!res.ok) return [];
@@ -185,6 +150,41 @@ async function apiEditBook(id, name, token) {
 
 async function apiDeleteBook(id, token) {
   await fetch(`/api/books?id=${id}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+}
+
+async function apiFetchTags(token) {
+  const res = await fetch("/api/tags", { headers: authHeaders(token) });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+async function apiAddTag(name, token) {
+  const res = await fetch("/api/tags", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ name }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `追加に失敗しました (${res.status})`);
+  return data;
+}
+
+async function apiEditTag(id, name, token) {
+  const res = await fetch("/api/tags", {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ id, name }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `更新に失敗しました (${res.status})`);
+  return data;
+}
+
+async function apiDeleteTag(id, token) {
+  await fetch(`/api/tags?id=${id}`, {
     method: "DELETE",
     headers: authHeaders(token),
   });
@@ -257,8 +257,7 @@ function ReviewCard({ log, onRate }) {
     <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 14, padding: "16px", marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
         <div>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.04em", textTransform: "uppercase" }}>{log.subject}</span>
-          <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)", marginTop: 2, lineHeight: 1.45 }}>{log.topic || log.content}</div>
+          <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)", lineHeight: 1.45 }}>{log.topic || log.content}</div>
           {(log.book || pageRangeLabel(log)) && (
             <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
               {log.book && <span>📖 {log.book}</span>}
@@ -358,19 +357,22 @@ function LoginScreen({ onLogin }) {
 
 // ─── Analytics View ───────────────────────────────────────────────────────────
 function AnalyticsView({ logs }) {
-  const subjectCounts = logs.reduce((acc, l) => {
-    acc[l.subject] = (acc[l.subject] || 0) + 1;
+  // タグ単位で集計（1つの記録が複数タグに寄与）
+  const tagCounts = logs.reduce((acc, l) => {
+    (l.tags || []).forEach((t) => { acc[t] = (acc[t] || 0) + 1; });
     return acc;
   }, {});
-  const subjects = Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]);
+  const subjects = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
   const maxCount = Math.max(...subjects.map(([, v]) => v), 1);
 
-  const subjectEFs = logs.reduce((acc, l) => {
-    if (!acc[l.subject]) acc[l.subject] = [];
-    acc[l.subject].push(l.ef);
+  const tagEFs = logs.reduce((acc, l) => {
+    (l.tags || []).forEach((t) => {
+      if (!acc[t]) acc[t] = [];
+      acc[t].push(l.ef);
+    });
     return acc;
   }, {});
-  const subjectRetention = Object.entries(subjectEFs).map(([subj, efs]) => ({
+  const subjectRetention = Object.entries(tagEFs).map(([subj, efs]) => ({
     subject: subj,
     avgEF: efs.reduce((s, v) => s + v, 0) / efs.length,
   })).sort((a, b) => b.avgEF - a.avgEF);
@@ -428,7 +430,7 @@ function AnalyticsView({ logs }) {
 
       {subjects.length > 0 && (
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 10 }}>科目別記録数</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 10 }}>タグ別記録数</div>
           {subjects.map(([subj, count]) => (
             <div key={subj} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
               <div style={{ width: 56, fontSize: 12, color: "var(--color-text-secondary)", textAlign: "right", flexShrink: 0 }}>{subj}</div>
@@ -453,12 +455,44 @@ function AnalyticsView({ logs }) {
               <div style={{ width: 36, fontSize: 11, color: "var(--color-text-tertiary)", textAlign: "right" }}>{avgEF.toFixed(2)}</div>
             </div>
           ))}
-          <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 6 }}>EF: 1.3（低）→ 3.0（高）。高いほど定着している科目</div>
+          <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 6 }}>EF: 1.3（低）→ 3.0（高）。高いほど定着しているタグ</div>
         </div>
       )}
     </div>
   );
 }
+
+// ─── Account Menu ─────────────────────────────────────────────────────────────
+function AccountMenuItem({ icon, label, danger, onClick }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+        padding: "11px 14px", background: hover ? "var(--color-background-secondary)" : "transparent",
+        border: "none", cursor: "pointer", fontSize: 13.5, fontFamily: "inherit",
+        color: danger ? "#e24b4a" : "var(--color-text-primary)", transition: "background 0.12s",
+      }}
+    >
+      <span style={{ width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+const IconKey = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="7.5" cy="15.5" r="4.5" /><path d="M10.7 12.3 21 2" /><path d="m16 7 3 3" /><path d="m18 5 2 2" />
+  </svg>
+);
+const IconLogout = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
 
 // ─── Password Change ──────────────────────────────────────────────────────────
 function PasswordModal({ token, onClose, onDone }) {
@@ -715,12 +749,12 @@ export default function App() {
   const [auth, setAuth] = useState(loadAuth);
   const [tab, setTab] = useState("today");
   const [logs, setLogs] = useState([]);
-  const [subjects, setSubjects] = useState([]);
   const [books, setBooks] = useState([]);
+  const [tagList, setTagList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ratedToday, setRatedToday] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newLog, setNewLog] = useState({ subject: "", book: "", topic: "", pageFrom: "", pageTo: "", content: "", tags: "" });
+  const [newLog, setNewLog] = useState({ book: "", topic: "", pageFrom: "", pageTo: "", content: "", tags: [] });
   const [savedMsg, setSavedMsg] = useState("");
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -730,13 +764,6 @@ export default function App() {
   const user = auth?.user;
   const isAdmin = user?.role === "admin";
 
-  const refreshSubjects = useCallback(async () => {
-    if (!token) return [];
-    const data = await apiFetchSubjects(token);
-    setSubjects(data);
-    return data;
-  }, [token]);
-
   const refreshBooks = useCallback(async () => {
     if (!token) return [];
     const data = await apiFetchBooks(token);
@@ -744,17 +771,21 @@ export default function App() {
     return data;
   }, [token]);
 
+  const refreshTags = useCallback(async () => {
+    if (!token) return [];
+    const data = await apiFetchTags(token);
+    setTagList(data);
+    return data;
+  }, [token]);
+
   useEffect(() => {
     if (!auth) { setLoading(false); return; }
     setLoading(true);
-    Promise.all([apiFetchLogs(token), apiFetchSubjects(token), apiFetchBooks(token)])
-      .then(([fetchedLogs, fetchedSubjects, fetchedBooks]) => {
+    Promise.all([apiFetchLogs(token), apiFetchBooks(token), apiFetchTags(token)])
+      .then(([fetchedLogs, fetchedBooks, fetchedTags]) => {
         setLogs(fetchedLogs);
-        setSubjects(fetchedSubjects);
         setBooks(fetchedBooks);
-        if (fetchedSubjects.length > 0) {
-          setNewLog((p) => ({ ...p, subject: fetchedSubjects[0].name }));
-        }
+        setTagList(fetchedTags);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -770,8 +801,8 @@ export default function App() {
     saveAuth(null);
     setAuth(null);
     setLogs([]);
-    setSubjects([]);
     setBooks([]);
+    setTagList([]);
     setTab("today");
     setLoading(true);
   };
@@ -791,20 +822,20 @@ export default function App() {
   };
 
   const handleAddLog = async () => {
-    if (!newLog.topic.trim() || !newLog.subject) return;
+    if (!newLog.topic.trim()) return;
     const topic = newLog.topic.trim();
     const book = newLog.book.trim();
     const pageFrom = newLog.pageFrom ? parseInt(newLog.pageFrom, 10) : null;
     const pageTo = newLog.pageTo ? parseInt(newLog.pageTo, 10) : null;
     const entry = {
       date: today(),
-      subject: newLog.subject,
+      subject: null,
       book: book || null,
       topic,
       pageFrom,
       pageTo,
       content: newLog.content.trim() || topic,
-      tags: newLog.tags ? newLog.tags.split(/[,、\s]+/).filter(Boolean) : [newLog.subject],
+      tags: newLog.tags,
       interval: 1,
       ef: 2.5,
       nextReview: addDays(today(), 1),
@@ -814,7 +845,7 @@ export default function App() {
       const created = await apiCreateLog(entry, token);
       setLogs((prev) => [created, ...prev]);
       // 書籍名は次の記録でも使い回せるよう残す
-      setNewLog((p) => ({ ...p, topic: "", pageFrom: "", pageTo: "", content: "", tags: "" }));
+      setNewLog((p) => ({ ...p, topic: "", pageFrom: "", pageTo: "", content: "", tags: [] }));
       setShowAddForm(false);
       setSavedMsg("記録しました！次回復習: 明日");
       setTimeout(() => setSavedMsg(""), 3000);
@@ -851,8 +882,12 @@ export default function App() {
     );
   }
 
-  const subjectNames = subjects.map((s) => s.name);
   const bookNames = books.map((b) => b.name);
+  const tagNames = tagList.map((t) => t.name);
+  const toggleTag = (name) => setNewLog((p) => ({
+    ...p,
+    tags: p.tags.includes(name) ? p.tags.filter((t) => t !== name) : [...p.tags, name],
+  }));
 
   const tabs = [
     { key: "today", label: `今日${dueToday.length > 0 ? `(${dueToday.length})` : ""}` },
@@ -883,33 +918,36 @@ export default function App() {
             <div style={{ position: "relative", display: "inline-block" }}>
               <button
                 onClick={() => setAccountMenuOpen((v) => !v)}
-                style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: "2px 0", marginLeft: "auto", color: "var(--color-text-secondary)" }}
+                style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end", background: accountMenuOpen ? "var(--color-background-secondary)" : "none", border: "0.5px solid", borderColor: accountMenuOpen ? "var(--color-border-secondary)" : "transparent", borderRadius: 99, cursor: "pointer", fontFamily: "inherit", padding: "4px 8px 4px 10px", marginLeft: "auto", color: "var(--color-text-secondary)", transition: "background 0.12s" }}
               >
-                {isAdmin && <Badge color="teal">管理者</Badge>}
-                <span style={{ fontSize: 12, fontWeight: 600 }}>{user?.username}</span>
-                <span style={{ fontSize: 9, color: "var(--color-text-tertiary)", transform: accountMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▼</span>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#1d9e75", color: "#fff", fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {(user?.username || "?").charAt(0).toUpperCase()}
+                </span>
+                <span style={{ fontSize: 12.5, fontWeight: 600 }}>{user?.username}</span>
+                <span style={{ fontSize: 8, color: "var(--color-text-tertiary)", transform: accountMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▼</span>
               </button>
               {accountMenuOpen && (
                 <>
-                  <div onClick={() => setAccountMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.25)", zIndex: 40 }} />
-                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 6, background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,0.28)", zIndex: 50, minWidth: 168, overflow: "hidden" }}>
-                    <button
-                      onClick={() => { setShowPasswordModal(true); setAccountMenuOpen(false); }}
-                      style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 14px", background: "none", border: "none", borderBottom: "0.5px solid var(--color-border-tertiary)", cursor: "pointer", fontSize: 13, color: "var(--color-text-primary)", fontFamily: "inherit" }}
-                    >
-                      🔑 パスワード変更
-                    </button>
-                    <button
-                      onClick={() => { setAccountMenuOpen(false); handleLogout(); }}
-                      style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#e24b4a", fontFamily: "inherit" }}
-                    >
-                      ログアウト
-                    </button>
+                  <div onClick={() => setAccountMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.18)", zIndex: 40 }} />
+                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 8, background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 14, boxShadow: "0 10px 32px rgba(0,0,0,0.22)", zIndex: 50, minWidth: 200, overflow: "hidden", textAlign: "left" }}>
+                    <div style={{ padding: "12px 14px", borderBottom: "0.5px solid var(--color-border-tertiary)", display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ width: 34, height: 34, borderRadius: "50%", background: "#1d9e75", color: "#fff", fontSize: 16, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {(user?.username || "?").charAt(0).toUpperCase()}
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.username}</div>
+                        <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 1 }}>{isAdmin ? "管理者" : "一般ユーザ"}</div>
+                      </div>
+                    </div>
+                    <div style={{ padding: "4px 0" }}>
+                      <AccountMenuItem icon={IconKey} label="パスワード変更" onClick={() => { setShowPasswordModal(true); setAccountMenuOpen(false); }} />
+                      <AccountMenuItem icon={IconLogout} label="ログアウト" danger onClick={() => { setAccountMenuOpen(false); handleLogout(); }} />
+                    </div>
                   </div>
                 </>
               )}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#1d9e75", marginTop: 4 }}>{totalStreak}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#1d9e75", marginTop: 6 }}>{totalStreak}</div>
             <div style={{ fontSize: 10, color: "var(--color-text-tertiary)" }}>連続日数</div>
           </div>
         </div>
@@ -994,7 +1032,6 @@ export default function App() {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
-                      <Badge color="gray">{log.subject}</Badge>
                       <span style={{ fontSize: 10, color: "var(--color-text-tertiary)" }}>{log.nextReview}</span>
                     </div>
                     <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.4 }}>{log.topic || log.content}</div>
@@ -1023,20 +1060,17 @@ export default function App() {
             {showAddForm && (() => {
               const fieldStyle = { width: "100%", padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "var(--color-background-primary)", color: "var(--color-text-primary)", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" };
               const labelStyle = { fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 4, marginTop: 12 };
-              const canSubmit = newLog.subject && newLog.topic.trim();
+              const canSubmit = newLog.topic.trim();
               return (
               <div style={{ background: "var(--color-background-secondary)", borderRadius: 12, padding: "14px", marginBottom: 14, border: "0.5px solid var(--color-border-tertiary)" }}>
-                {/* 科目 */}
-                <div style={{ ...labelStyle, marginTop: 0 }}>科目</div>
-                {subjectNames.length > 0 ? (
-                  <select value={newLog.subject} onChange={(e) => setNewLog((p) => ({ ...p, subject: e.target.value }))} style={fieldStyle}>
-                    {subjectNames.map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                ) : (
-                  <div style={{ fontSize: 13, color: "#854f0b", background: "#fff7ed", borderRadius: 8, padding: "8px 12px" }}>
-                    「設定」タブから科目を追加してください
-                  </div>
-                )}
+                {/* 項目名（必須） */}
+                <div style={{ ...labelStyle, marginTop: 0 }}>項目名 <span style={{ color: "#e24b4a" }}>*</span></div>
+                <input
+                  value={newLog.topic}
+                  onChange={(e) => setNewLog((p) => ({ ...p, topic: e.target.value }))}
+                  placeholder="例: 関係代名詞 / 第3章 化学結合"
+                  style={fieldStyle}
+                />
 
                 {/* 書籍・教科書名（事前登録からプルダウン選択） */}
                 <div style={labelStyle}>教科書・書籍名（省略可）</div>
@@ -1050,15 +1084,6 @@ export default function App() {
                     「設定」タブから書籍を登録すると選べます
                   </div>
                 )}
-
-                {/* 項目名（必須） */}
-                <div style={labelStyle}>項目名 <span style={{ color: "#e24b4a" }}>*</span></div>
-                <input
-                  value={newLog.topic}
-                  onChange={(e) => setNewLog((p) => ({ ...p, topic: e.target.value }))}
-                  placeholder="例: 関係代名詞 / 第3章 化学結合"
-                  style={fieldStyle}
-                />
 
                 {/* ページ範囲 */}
                 <div style={labelStyle}>ページ範囲（省略可）</div>
@@ -1093,14 +1118,29 @@ export default function App() {
                   style={{ ...fieldStyle, resize: "none" }}
                 />
 
-                {/* タグ */}
-                <div style={labelStyle}>タグ（カンマ区切り・省略可）</div>
-                <input
-                  value={newLog.tags}
-                  onChange={(e) => setNewLog((p) => ({ ...p, tags: e.target.value }))}
-                  placeholder="例: 単語, 試験, 文法"
-                  style={fieldStyle}
-                />
+                {/* タグ（事前登録から複数選択） */}
+                <div style={labelStyle}>タグ（複数選択可・省略可）</div>
+                {tagNames.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {tagNames.map((t) => {
+                      const active = newLog.tags.includes(t);
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => toggleTag(t)}
+                          style={{ padding: "5px 12px", borderRadius: 99, fontSize: 13, fontFamily: "inherit", cursor: "pointer", border: active ? "1px solid #1d9e75" : "0.5px solid var(--color-border-secondary)", background: active ? "#e3f5d0" : "var(--color-background-primary)", color: active ? "#3b6d11" : "var(--color-text-secondary)", fontWeight: active ? 600 : 400 }}
+                        >
+                          {active ? "✓ " : ""}{t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "#854f0b", background: "#fff7ed", borderRadius: 8, padding: "8px 12px" }}>
+                    「設定」タブからタグを登録すると選べます
+                  </div>
+                )}
 
                 <button onClick={handleAddLog} disabled={!canSubmit} style={{ width: "100%", marginTop: 16, padding: "10px", background: !canSubmit ? "#aaa" : "#1d9e75", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: canSubmit ? "pointer" : "default", fontFamily: "inherit" }}>
                   記録して復習スケジュールを設定
@@ -1113,7 +1153,6 @@ export default function App() {
               <div key={log.id} style={{ padding: "12px 0", borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <Badge color="gray">{log.subject}</Badge>
                     <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{log.date}</span>
                   </div>
                   <DueLabel nextReview={log.nextReview} />
@@ -1146,18 +1185,13 @@ export default function App() {
             <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
               <MasterListSettings
                 token={token}
-                title="科目管理"
-                label="科目"
-                items={subjects}
-                onAdd={apiAddSubject}
-                onEdit={apiEditSubject}
-                onDelete={apiDeleteSubject}
-                onRefresh={async () => {
-                  const data = await refreshSubjects();
-                  if (data?.length > 0 && !newLog.subject) {
-                    setNewLog((p) => ({ ...p, subject: data[0].name }));
-                  }
-                }}
+                title="タグ管理"
+                label="タグ"
+                items={tagList}
+                onAdd={apiAddTag}
+                onEdit={apiEditTag}
+                onDelete={apiDeleteTag}
+                onRefresh={refreshTags}
               />
             </div>
             <MasterListSettings
