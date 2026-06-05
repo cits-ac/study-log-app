@@ -73,16 +73,38 @@ class handler(BaseHTTPRequestHandler):
                 return
             email = f"{username}@studylog.local"
             sb = service_client()
-            resp = sb.auth.admin.create_user({
-                "email": email,
-                "password": password,
-                "email_confirm": True,
-            })
-            sb.table("profiles").insert({
-                "id": resp.user.id,
-                "username": username,
-                "role": role,
-            }).execute()
+            # 重複IDは先にはじく（auth ユーザの孤立を防ぐ）
+            existing = sb.table("profiles").select("id").eq("username", username).execute()
+            if existing.data:
+                self._json(409, {"error": f"ID「{username}」はすでに使われています"})
+                return
+            try:
+                resp = sb.auth.admin.create_user({
+                    "email": email,
+                    "password": password,
+                    "email_confirm": True,
+                })
+            except Exception as e:
+                if "already" in str(e).lower() or "registered" in str(e).lower():
+                    self._json(409, {"error": f"ID「{username}」はすでに使われています"})
+                    return
+                raise
+            # プロフィール作成に失敗したら auth ユーザを削除してロールバック
+            try:
+                sb.table("profiles").insert({
+                    "id": resp.user.id,
+                    "username": username,
+                    "role": role,
+                }).execute()
+            except Exception as e:
+                try:
+                    sb.auth.admin.delete_user(resp.user.id)
+                except Exception:
+                    pass
+                if "23505" in str(e) or "duplicate key" in str(e):
+                    self._json(409, {"error": f"ID「{username}」はすでに使われています"})
+                    return
+                raise
             self._json(201, {"id": resp.user.id, "username": username, "role": role})
         except Exception as e:
             self._json(500, {"error": str(e)})

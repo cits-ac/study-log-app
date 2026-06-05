@@ -3,7 +3,7 @@ import json
 import os
 import anthropic
 
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 
 class handler(BaseHTTPRequestHandler):
@@ -31,6 +31,9 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if not ANTHROPIC_API_KEY:
+                self._json(500, {"error": "AI機能が未設定です（ANTHROPIC_API_KEY 環境変数を設定してください）"})
+                return
             log = self._body().get("log", {})
             client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
             message = client.messages.create(

@@ -66,6 +66,9 @@ class handler(BaseHTTPRequestHandler):
             result = sb.table("tags").insert({"user_id": user_id, "name": name}).execute()
             self._json(201, result.data[0])
         except Exception as e:
+            if "23505" in str(e) or "duplicate key" in str(e):
+                self._json(409, {"error": f"「{name}」はすでに登録されています"})
+                return
             self._json(500, {"error": str(e)})
 
     def do_PUT(self):
@@ -92,6 +95,9 @@ class handler(BaseHTTPRequestHandler):
                 return
             self._json(200, result.data[0])
         except Exception as e:
+            if "23505" in str(e) or "duplicate key" in str(e):
+                self._json(409, {"error": f"「{name}」はすでに登録されています"})
+                return
             self._json(500, {"error": str(e)})
 
     def do_DELETE(self):

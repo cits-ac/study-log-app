@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, createContext, useContext } from "react";
 
 // ─── SM-2 algorithm ───────────────────────────────────────────────────────────
 function sm2NextInterval(prevInterval, prevEF, quality) {
@@ -311,19 +311,18 @@ function ReviewCard({ log, onRate }) {
 function LoginScreen({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const showAlert = useAlert();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!username || !password) { setError("IDとパスワードを入力してください"); return; }
+    if (!username || !password) { showAlert("IDとパスワードを入力してください"); return; }
     setLoading(true);
-    setError("");
     try {
       const data = await apiLogin(username.trim(), password);
       onLogin(data);
     } catch (err) {
-      setError(err.message);
+      showAlert(err.message);
     } finally {
       setLoading(false);
     }
@@ -357,9 +356,6 @@ function LoginScreen({ onLogin }) {
             style={{ width: "100%", padding: "10px 12px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, fontSize: 15, fontFamily: "inherit", background: "var(--color-background-primary)", color: "var(--color-text-primary)", boxSizing: "border-box" }}
           />
         </div>
-        {error && (
-          <div style={{ fontSize: 13, color: "#a32d2d", background: "#fcebeb", border: "0.5px solid #f5a5a5", borderRadius: 8, padding: "8px 12px" }}>{error}</div>
-        )}
         <button
           type="submit"
           disabled={loading}
@@ -538,6 +534,42 @@ function IcCircleCheck({ size = 48, color = "#1d9e75" }) {
   );
 }
 
+function IcAlert({ size = 26 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
+// ─── Alert Modal（アプリ全体のエラー/通知を中央モーダルで表示） ──────────────────
+const AlertContext = createContext(() => {});
+function useAlert() { return useContext(AlertContext); }
+
+function AlertModal({ alert, onClose }) {
+  const isError = alert.type !== "success";
+  const accent = isError ? "#e24b4a" : "#1d9e75";
+  const iconBg = isError ? "#fcebeb" : "#e3f5d0";
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,28,0.55)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 300, fontFamily: "'Noto Sans JP', 'Hiragino Sans', sans-serif" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 320, background: "var(--color-background-primary, #ffffff)", border: "0.5px solid var(--color-border-secondary, #e3e0da)", boxShadow: "0 20px 56px rgba(0,0,0,0.36)", borderRadius: 16, padding: "24px 20px 18px", textAlign: "center" }}
+      >
+        <div style={{ width: 48, height: 48, borderRadius: "50%", background: iconBg, display: "inline-flex", alignItems: "center", justifyContent: "center", color: accent, marginBottom: 14 }}>
+          {isError ? <IcAlert /> : <IcCircleCheck size={28} color={accent} />}
+        </div>
+        <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--color-text-primary)", whiteSpace: "pre-wrap", marginBottom: 18 }}>{alert.message}</div>
+        <button onClick={onClose} autoFocus style={{ width: "100%", padding: "11px", background: accent, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>OK</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Edit Log Modal ───────────────────────────────────────────────────────────
 function EditLogModal({ log, books, tagNames, token, onClose, onSave }) {
   const [form, setForm] = useState({
@@ -549,7 +581,7 @@ function EditLogModal({ log, books, tagNames, token, onClose, onSave }) {
     tags: log.tags || [],
   });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const showAlert = useAlert();
 
   const toggleTag = (name) => setForm((p) => ({
     ...p,
@@ -557,9 +589,8 @@ function EditLogModal({ log, books, tagNames, token, onClose, onSave }) {
   }));
 
   const handleSave = async () => {
-    if (!form.book) { setError("教科書・書籍名は必須です"); return; }
+    if (!form.book) { showAlert("教科書・書籍名は必須です"); return; }
     setSaving(true);
-    setError("");
     try {
       const updated = {
         ...log,
@@ -574,7 +605,7 @@ function EditLogModal({ log, books, tagNames, token, onClose, onSave }) {
       onSave(updated);
       onClose();
     } catch {
-      setError("保存に失敗しました");
+      showAlert("保存に失敗しました");
     } finally {
       setSaving(false);
     }
@@ -597,8 +628,6 @@ function EditLogModal({ log, books, tagNames, token, onClose, onSave }) {
           <button onClick={onClose} style={{ fontSize: 20, color: "var(--color-text-tertiary)", background: "none", border: "none", cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
         </div>
         <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginBottom: 16 }}>学習日: {log.date}</div>
-
-        {error && <div style={{ fontSize: 13, color: "#a32d2d", background: "#fcebeb", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>{error}</div>}
 
         <div style={{ ...labelStyle, marginTop: 0 }}>教科書・書籍名 <span style={{ color: "#e24b4a" }}>*</span></div>
         {books.length > 0 ? (
@@ -659,20 +688,19 @@ function PasswordModal({ token, onClose, onDone }) {
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const showAlert = useAlert();
 
   const handleSubmit = async () => {
-    setError("");
-    if (!current || !next) { setError("すべての項目を入力してください"); return; }
-    if (next.length < 6) { setError("新しいパスワードは6文字以上にしてください"); return; }
-    if (next !== confirm) { setError("新しいパスワードが一致しません"); return; }
+    if (!current || !next) { showAlert("すべての項目を入力してください"); return; }
+    if (next.length < 6) { showAlert("新しいパスワードは6文字以上にしてください"); return; }
+    if (next !== confirm) { showAlert("新しいパスワードが一致しません"); return; }
     setSaving(true);
     try {
       await apiChangePassword(current, next, token);
       onDone("パスワードを変更しました");
       onClose();
     } catch (e) {
-      setError(e.message);
+      showAlert(e.message);
     } finally {
       setSaving(false);
     }
@@ -694,7 +722,6 @@ function PasswordModal({ token, onClose, onDone }) {
           <button onClick={onClose} style={{ fontSize: 20, color: "var(--color-text-tertiary)", background: "none", border: "none", cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {error && <div style={{ fontSize: 13, color: "#a32d2d", background: "#fcebeb", borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
           <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="現在のパスワード" autoComplete="current-password" style={inputStyle} />
           <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="新しいパスワード（6文字以上）" autoComplete="new-password" style={inputStyle} />
           <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="新しいパスワード（確認）" autoComplete="new-password" onKeyDown={(e) => e.key === "Enter" && handleSubmit()} style={inputStyle} />
@@ -713,18 +740,17 @@ function MasterListSettings({ token, title, label, items, onAdd, onEdit, onDelet
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const showAlert = useAlert();
 
   const handleAdd = async () => {
     if (!newName.trim()) return;
     setSaving(true);
-    setError("");
     try {
       await onAdd(newName.trim(), token);
       setNewName("");
       await onRefresh();
     } catch (e) {
-      setError(e.message);
+      showAlert(e.message);
     } finally {
       setSaving(false);
     }
@@ -733,13 +759,12 @@ function MasterListSettings({ token, title, label, items, onAdd, onEdit, onDelet
   const handleEdit = async (id) => {
     if (!editName.trim()) return;
     setSaving(true);
-    setError("");
     try {
       await onEdit(id, editName.trim(), token);
       setEditingId(null);
       await onRefresh();
     } catch (e) {
-      setError(e.message);
+      showAlert(e.message);
     } finally {
       setSaving(false);
     }
@@ -751,16 +776,13 @@ function MasterListSettings({ token, title, label, items, onAdd, onEdit, onDelet
       await onDelete(id, token);
       await onRefresh();
     } catch {
-      setError("削除に失敗しました");
+      showAlert("削除に失敗しました");
     }
   };
 
   return (
     <div>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 12 }}>{title}</div>
-      {error && (
-        <div style={{ fontSize: 13, color: "#a32d2d", background: "#fcebeb", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>{error}</div>
-      )}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <input
           value={newName}
@@ -816,25 +838,24 @@ function AdminPanel({ token }) {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [newUser, setNewUser] = useState({ username: "", password: "", role: "user" });
-  const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
+  const showAlert = useAlert();
 
   const loadUsers = useCallback(async () => {
     try {
       const data = await apiFetchUsers(token);
       setUsers(data);
     } catch {
-      setError("ユーザ取得に失敗しました");
+      showAlert("ユーザ取得に失敗しました");
     } finally {
       setLoadingUsers(false);
     }
-  }, [token]);
+  }, [token, showAlert]);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
   const handleCreate = async () => {
-    if (!newUser.username || !newUser.password) { setError("IDとパスワードは必須です"); return; }
-    setError("");
+    if (!newUser.username || !newUser.password) { showAlert("IDとパスワードは必須です"); return; }
     try {
       await apiCreateUser(newUser.username, newUser.password, newUser.role, token);
       setNewUser({ username: "", password: "", role: "user" });
@@ -843,7 +864,7 @@ function AdminPanel({ token }) {
       setTimeout(() => setMsg(""), 3000);
       await loadUsers();
     } catch (e) {
-      setError(e.message);
+      showAlert(e.message);
     }
   };
 
@@ -853,7 +874,7 @@ function AdminPanel({ token }) {
       await apiDeleteUser(id, token);
       await loadUsers();
     } catch (e) {
-      setError(e.message);
+      showAlert(e.message);
     }
   };
 
@@ -866,7 +887,6 @@ function AdminPanel({ token }) {
         </button>
       </div>
 
-      {error && <div style={{ fontSize: 13, color: "#a32d2d", background: "#fcebeb", borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>{error}</div>}
       {msg && <div style={{ fontSize: 13, color: "#3b6d11", background: "#e3f5d0", borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>{msg}</div>}
 
       {showForm && (
@@ -919,6 +939,9 @@ export default function App() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [editingLog, setEditingLog] = useState(null);
+  const [alert, setAlert] = useState(null);
+
+  const showAlert = useCallback((message, type = "error") => setAlert({ message, type }), []);
 
   const token = auth?.token;
   const user = auth?.user;
@@ -978,7 +1001,7 @@ export default function App() {
     const updated = { ...log, interval, ef, nextReview: addDays(today(), interval), reviewCount: (log.reviewCount || 0) + 1 };
     setLogs((prev) => prev.map((l) => (l.id === id ? updated : l)));
     setRatedToday((p) => ({ ...p, [id]: true }));
-    try { await apiUpdateLog(updated, token); } catch {}
+    try { await apiUpdateLog(updated, token); } catch { showAlert("評価の保存に失敗しました"); }
   };
 
   const handleAddLog = async () => {
@@ -1009,7 +1032,7 @@ export default function App() {
       setShowAddForm(false);
       setSavedMsg("記録しました！次回復習: 明日");
       setTimeout(() => setSavedMsg(""), 3000);
-    } catch {}
+    } catch { showAlert("記録の保存に失敗しました"); }
   };
 
   const handleDeleteLog = async (log) => {
@@ -1022,13 +1045,12 @@ export default function App() {
       setTimeout(() => setSavedMsg(""), 3000);
     } catch {
       setLogs(prev); // 失敗時はロールバック
-      setSavedMsg("削除に失敗しました");
-      setTimeout(() => setSavedMsg(""), 3000);
+      showAlert("削除に失敗しました");
     }
   };
 
   const requestNotif = async () => {
-    if (!("Notification" in window)) { alert("このブラウザはプッシュ通知に対応していません。"); return; }
+    if (!("Notification" in window)) { showAlert("このブラウザはプッシュ通知に対応していません。"); return; }
     const perm = await Notification.requestPermission();
     if (perm === "granted") {
       setNotifEnabled(true);
@@ -1047,7 +1069,12 @@ export default function App() {
     return streak;
   })();
 
-  if (!auth) return <LoginScreen onLogin={handleLogin} />;
+  if (!auth) return (
+    <AlertContext.Provider value={showAlert}>
+      <LoginScreen onLogin={handleLogin} />
+      {alert && <AlertModal alert={alert} onClose={() => setAlert(null)} />}
+    </AlertContext.Provider>
+  );
 
   if (loading) {
     return (
@@ -1074,7 +1101,9 @@ export default function App() {
   ];
 
   return (
+    <AlertContext.Provider value={showAlert}>
     <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 0 40px", fontFamily: "'Noto Sans JP', 'Hiragino Sans', sans-serif" }}>
+      {alert && <AlertModal alert={alert} onClose={() => setAlert(null)} />}
       {showPasswordModal && (
         <PasswordModal
           token={token}
@@ -1409,5 +1438,6 @@ export default function App() {
         {tab === "admin" && isAdmin && <AdminPanel token={token} />}
       </div>
     </div>
+    </AlertContext.Provider>
   );
 }
