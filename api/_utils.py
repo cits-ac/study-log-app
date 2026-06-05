@@ -17,13 +17,16 @@ def anon_client():
 def verify_token(auth_header):
     """Returns (user_id, role). Raises ValueError if invalid."""
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise ValueError("No token")
+        raise ValueError("認証トークンがありません")
     token = auth_header[7:]
     sb = service_client()
-    resp = sb.auth.get_user(token)
-    if not resp.user:
-        raise ValueError("Invalid token")
+    try:
+        resp = sb.auth.get_user(token)
+    except Exception:
+        raise ValueError("トークンが無効か期限切れです。再ログインしてください")
+    if not resp or not resp.user:
+        raise ValueError("トークンが無効です。再ログインしてください")
     user_id = resp.user.id
-    profile = sb.table("profiles").select("role").eq("id", user_id).single().execute()
-    role = profile.data.get("role", "user") if profile.data else "user"
+    profile = sb.table("profiles").select("role").eq("id", user_id).execute()
+    role = profile.data[0]["role"] if profile.data else "user"
     return user_id, role

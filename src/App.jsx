@@ -114,8 +114,9 @@ async function apiAddSubject(name, token) {
     headers: authHeaders(token),
     body: JSON.stringify({ name }),
   });
-  if (!res.ok) throw new Error("追加に失敗しました");
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `追加に失敗しました (${res.status})`);
+  return data;
 }
 
 async function apiEditSubject(id, name, token) {
@@ -124,8 +125,9 @@ async function apiEditSubject(id, name, token) {
     headers: authHeaders(token),
     body: JSON.stringify({ id, name }),
   });
-  if (!res.ok) throw new Error("更新に失敗しました");
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `更新に失敗しました (${res.status})`);
+  return data;
 }
 
 async function apiDeleteSubject(id, token) {

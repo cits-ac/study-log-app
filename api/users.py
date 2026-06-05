@@ -33,8 +33,11 @@ class handler(BaseHTTPRequestHandler):
                 self._json(403, {"error": "管理者権限が必要です"})
                 return None, None
             return user_id, role
-        except ValueError:
-            self._json(401, {"error": "認証が必要です"})
+        except ValueError as e:
+            self._json(401, {"error": str(e)})
+            return None, None
+        except Exception as e:
+            self._json(500, {"error": f"認証エラー: {e}"})
             return None, None
 
     def do_OPTIONS(self):

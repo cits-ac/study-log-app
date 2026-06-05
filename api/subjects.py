@@ -29,8 +29,11 @@ class handler(BaseHTTPRequestHandler):
     def _auth(self):
         try:
             return verify_token(self.headers.get("Authorization"))
-        except ValueError:
-            self._json(401, {"error": "認証が必要です"})
+        except ValueError as e:
+            self._json(401, {"error": str(e)})
+            return None, None
+        except Exception as e:
+            self._json(500, {"error": f"認証エラー: {e}"})
             return None, None
 
     def do_OPTIONS(self):
