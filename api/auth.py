@@ -39,20 +39,31 @@ class handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "IDとパスワードを入力してください"})
                 return
             email = f"{username}@studylog.local"
-            sb_anon = anon_client()
-            resp = sb_anon.auth.sign_in_with_password({"email": email, "password": password})
+            try:
+                sb_anon = anon_client()
+                resp = sb_anon.auth.sign_in_with_password({"email": email, "password": password})
+            except Exception as e:
+                # 環境変数未設定などの設定エラーは原因をそのまま返す
+                if "環境変数" in str(e):
+                    self._json(500, {"error": str(e)})
+                else:
+                    self._json(401, {"error": "IDまたはパスワードが正しくありません"})
+                return
             sb = service_client()
-            profile = sb.table("profiles").select("*").eq("id", resp.user.id).single().execute()
+            profile = sb.table("profiles").select("*").eq("id", resp.user.id).execute()
+            if not profile.data:
+                self._json(500, {"error": "プロフィールが見つかりません。/api/setup を実行してください"})
+                return
             self._json(200, {
                 "access_token": resp.session.access_token,
                 "user": {
                     "id": resp.user.id,
-                    "username": profile.data["username"],
-                    "role": profile.data["role"],
+                    "username": profile.data[0]["username"],
+                    "role": profile.data[0]["role"],
                 },
             })
-        except Exception:
-            self._json(401, {"error": "IDまたはパスワードが正しくありません"})
+        except Exception as e:
+            self._json(500, {"error": f"サーバーエラー: {e}"})
 
     def log_message(self, format, *args):
         pass

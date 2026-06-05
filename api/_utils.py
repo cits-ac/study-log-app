@@ -1,16 +1,27 @@
 import os
 from supabase import create_client
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_SERVICE_KEY = os.environ["SUPABASE_KEY"]
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", SUPABASE_SERVICE_KEY)
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_KEY")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY") or SUPABASE_SERVICE_KEY
+
+
+def _check_env():
+    missing = [name for name, val in [
+        ("SUPABASE_URL", SUPABASE_URL),
+        ("SUPABASE_KEY", SUPABASE_SERVICE_KEY),
+    ] if not val]
+    if missing:
+        raise RuntimeError("環境変数が未設定です: " + ", ".join(missing))
 
 
 def service_client():
+    _check_env()
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
 def anon_client():
+    _check_env()
     return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 
