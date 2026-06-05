@@ -1,0 +1,37 @@
+:root {
+  /* 背景 */
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f6f4f0;
+
+  /* 枠線 */
+  --color-border-secondary: #d9d5ce;
+  --color-border-tertiary: #ebe8e2;
+
+  /* テキスト */
+  --color-text-primary: #1f1e1b;
+  --color-text-secondary: #5f5e5a;
+  --color-text-tertiary: #9a978f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background-primary: #1c1c1a;
+    --color-background-secondary: #262624;
+    --color-border-secondary: #3a3a37;
+    --color-border-tertiary: #2f2f2c;
+    --color-text-primary: #f3f1ec;
+    --color-text-secondary: #b6b3ac;
+    --color-text-tertiary: #807d76;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}

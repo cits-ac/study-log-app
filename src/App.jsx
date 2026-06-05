@@ -578,11 +578,11 @@ function EditLogModal({ log, books, tagNames, token, onClose, onSave }) {
   return (
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,28,0.55)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto", background: "var(--color-background-primary)", borderRadius: 16, padding: 20, fontFamily: "inherit" }}
+        style={{ width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto", background: "var(--color-background-primary, #ffffff)", border: "0.5px solid var(--color-border-secondary, #e3e0da)", boxShadow: "0 20px 56px rgba(0,0,0,0.36)", borderRadius: 16, padding: 20, fontFamily: "inherit" }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text-primary)" }}>記録を編集</div>
@@ -675,11 +675,11 @@ function PasswordModal({ token, onClose, onDone }) {
   return (
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,28,0.55)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 360, background: "var(--color-background-primary)", borderRadius: 16, padding: 20, fontFamily: "inherit" }}
+        style={{ width: "100%", maxWidth: 360, background: "var(--color-background-primary, #ffffff)", border: "0.5px solid var(--color-border-secondary, #e3e0da)", boxShadow: "0 20px 56px rgba(0,0,0,0.36)", borderRadius: 16, padding: 20, fontFamily: "inherit" }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text-primary)" }}>パスワード変更</div>
@@ -1095,7 +1095,7 @@ export default function App() {
               {accountMenuOpen && (
                 <>
                   <div onClick={() => setAccountMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,28,0.45)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", zIndex: 40 }} />
-                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 10, background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.34)", zIndex: 50, width: 248, overflow: "hidden", textAlign: "left" }}>
+                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 10, background: "var(--color-background-primary, #ffffff)", border: "0.5px solid var(--color-border-secondary, #e3e0da)", borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.34)", zIndex: 50, width: 248, overflow: "hidden", textAlign: "left" }}>
                     <div style={{ padding: "16px 16px 14px", background: "linear-gradient(135deg, rgba(29,158,117,0.12), rgba(29,158,117,0.02))", display: "flex", alignItems: "center", gap: 12 }}>
                       <span style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(135deg, #25b386, #1d9e75)", color: "#fff", fontSize: 19, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 8px rgba(29,158,117,0.4)" }}>
                         {(user?.username || "?").charAt(0).toUpperCase()}
