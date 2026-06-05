@@ -269,7 +269,7 @@ function ReviewCard({ log, onRate }) {
           <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)", lineHeight: 1.45 }}>{logMainText(log)}</div>
           {(logBookSub(log) || pageRangeLabel(log)) && (
             <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {logBookSub(log) && <span>📖 {logBookSub(log)}</span>}
+              {logBookSub(log) && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><IcBook />{logBookSub(log)}</span>}
               {pageRangeLabel(log) && <span>{pageRangeLabel(log)}</span>}
             </div>
           )}
@@ -505,6 +505,145 @@ const IconLogout = (
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
   </svg>
 );
+
+function IcBook({ size = 13, style: s = {} }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: "inline-block", verticalAlign: "middle", flexShrink: 0, ...s }}>
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </svg>
+  );
+}
+
+function IcCheck({ size = 11 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "inline-block", verticalAlign: "middle" }}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function IcCircleCheck({ size = 48, color = "#1d9e75" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" /><polyline points="9 12 11 14 15 10" />
+    </svg>
+  );
+}
+
+// ─── Edit Log Modal ───────────────────────────────────────────────────────────
+function EditLogModal({ log, books, tagNames, token, onClose, onSave }) {
+  const [form, setForm] = useState({
+    book: log.book || "",
+    topic: log.topic || "",
+    pageFrom: log.pageFrom != null ? String(log.pageFrom) : "",
+    pageTo: log.pageTo != null ? String(log.pageTo) : "",
+    content: log.content || "",
+    tags: log.tags || [],
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const toggleTag = (name) => setForm((p) => ({
+    ...p,
+    tags: p.tags.includes(name) ? p.tags.filter((t) => t !== name) : [...p.tags, name],
+  }));
+
+  const handleSave = async () => {
+    if (!form.book) { setError("教科書・書籍名は必須です"); return; }
+    setSaving(true);
+    setError("");
+    try {
+      const updated = {
+        ...log,
+        book: form.book.trim(),
+        topic: form.topic.trim() || null,
+        pageFrom: form.pageFrom ? parseInt(form.pageFrom, 10) : null,
+        pageTo: form.pageTo ? parseInt(form.pageTo, 10) : null,
+        content: form.content.trim() || form.topic.trim() || form.book.trim(),
+        tags: form.tags,
+      };
+      await apiUpdateLog(updated, token);
+      onSave(updated);
+      onClose();
+    } catch {
+      setError("保存に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = { width: "100%", padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "var(--color-background-primary)", color: "var(--color-text-primary)", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" };
+  const labelStyle = { fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 4, marginTop: 12 };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto", background: "var(--color-background-primary)", borderRadius: 16, padding: 20, fontFamily: "inherit" }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text-primary)" }}>記録を編集</div>
+          <button onClick={onClose} style={{ fontSize: 20, color: "var(--color-text-tertiary)", background: "none", border: "none", cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginBottom: 16 }}>学習日: {log.date}</div>
+
+        {error && <div style={{ fontSize: 13, color: "#a32d2d", background: "#fcebeb", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>{error}</div>}
+
+        <div style={{ ...labelStyle, marginTop: 0 }}>教科書・書籍名 <span style={{ color: "#e24b4a" }}>*</span></div>
+        {books.length > 0 ? (
+          <select value={form.book} onChange={(e) => setForm((p) => ({ ...p, book: e.target.value }))} style={fieldStyle}>
+            <option value="">（選択してください）</option>
+            {books.map((b) => <option key={b}>{b}</option>)}
+          </select>
+        ) : (
+          <input value={form.book} onChange={(e) => setForm((p) => ({ ...p, book: e.target.value }))} style={fieldStyle} />
+        )}
+
+        <div style={labelStyle}>項目名（省略可）</div>
+        <input value={form.topic} onChange={(e) => setForm((p) => ({ ...p, topic: e.target.value }))} placeholder="例: 関係代名詞 / 第3章 化学結合" style={fieldStyle} />
+
+        <div style={labelStyle}>ページ範囲（省略可）</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input type="number" inputMode="numeric" value={form.pageFrom} onChange={(e) => setForm((p) => ({ ...p, pageFrom: e.target.value }))} placeholder="開始" style={{ ...fieldStyle, textAlign: "center" }} />
+          <span style={{ color: "var(--color-text-tertiary)", fontSize: 14 }}>〜</span>
+          <input type="number" inputMode="numeric" value={form.pageTo} onChange={(e) => setForm((p) => ({ ...p, pageTo: e.target.value }))} placeholder="終了" style={{ ...fieldStyle, textAlign: "center" }} />
+          <span style={{ color: "var(--color-text-tertiary)", fontSize: 13, whiteSpace: "nowrap" }}>ページ</span>
+        </div>
+
+        <div style={labelStyle}>メモ（省略可）</div>
+        <textarea value={form.content} onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))} placeholder="覚えにくかった点、間違えた箇所など" rows={2} style={{ ...fieldStyle, resize: "none" }} />
+
+        <div style={labelStyle}>タグ（複数選択可・省略可）</div>
+        {tagNames.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {tagNames.map((t) => {
+              const active = form.tags.includes(t);
+              return (
+                <button key={t} type="button" onClick={() => toggleTag(t)} style={{ padding: "5px 12px", borderRadius: 99, fontSize: 13, fontFamily: "inherit", cursor: "pointer", border: active ? "1px solid #1d9e75" : "0.5px solid var(--color-border-secondary)", background: active ? "#e3f5d0" : "var(--color-background-primary)", color: active ? "#3b6d11" : "var(--color-text-secondary)", fontWeight: active ? 600 : 400 }}>
+                  {active ? <><IcCheck />{" "}</> : null}{t}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: "#854f0b", background: "#fff7ed", borderRadius: 8, padding: "8px 12px" }}>
+            「設定」タブからタグを登録すると選べます
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "none", color: "var(--color-text-secondary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>キャンセル</button>
+          <button onClick={handleSave} disabled={saving || !form.book} style={{ flex: 2, padding: "10px", background: saving || !form.book ? "#aaa" : "#1d9e75", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: saving || !form.book ? "default" : "pointer", fontFamily: "inherit" }}>
+            {saving ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Password Change ──────────────────────────────────────────────────────────
 function PasswordModal({ token, onClose, onDone }) {
@@ -771,6 +910,7 @@ export default function App() {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [editingLog, setEditingLog] = useState(null);
 
   const token = auth?.token;
   const user = auth?.user;
@@ -919,6 +1059,20 @@ export default function App() {
           onDone={(m) => { setSavedMsg(m); setTimeout(() => setSavedMsg(""), 3000); }}
         />
       )}
+      {editingLog && (
+        <EditLogModal
+          log={editingLog}
+          books={bookNames}
+          tagNames={tagNames}
+          token={token}
+          onClose={() => setEditingLog(null)}
+          onSave={(updated) => {
+            setLogs((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+            setSavedMsg("記録を更新しました");
+            setTimeout(() => setSavedMsg(""), 3000);
+          }}
+        />
+      )}
       {/* Header */}
       <div style={{ padding: "20px 16px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
@@ -984,7 +1138,7 @@ export default function App() {
 
         {dueToday.length > 0 && (
           <div style={{ background: "#fff7ed", border: "0.5px solid #fac775", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13, color: "#854f0b" }}>📚 今日の復習が <strong>{dueToday.length}件</strong> あります</div>
+            <div style={{ fontSize: 13, color: "#854f0b", display: "flex", alignItems: "center", gap: 6 }}><IcBook size={14} style={{ color: "#854f0b" }} />今日の復習が <strong>{dueToday.length}件</strong> あります</div>
             {!notifEnabled && (
               <button onClick={requestNotif} style={{ fontSize: 11, background: "#fac775", color: "#412402", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontWeight: 600 }}>通知ON</button>
             )}
@@ -1015,7 +1169,7 @@ export default function App() {
           <div>
             {dueToday.length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-tertiary)" }}>
-                <div style={{ fontSize: 32 }}>🎉</div>
+                <IcCircleCheck />
                 <div style={{ fontSize: 15, marginTop: 8, fontWeight: 500, color: "var(--color-text-secondary)" }}>今日の復習は完了！</div>
                 <div style={{ fontSize: 13, marginTop: 4 }}>次の復習まで休憩してください</div>
               </div>
@@ -1148,7 +1302,7 @@ export default function App() {
                           onClick={() => toggleTag(t)}
                           style={{ padding: "5px 12px", borderRadius: 99, fontSize: 13, fontFamily: "inherit", cursor: "pointer", border: active ? "1px solid #1d9e75" : "0.5px solid var(--color-border-secondary)", background: active ? "#e3f5d0" : "var(--color-background-primary)", color: active ? "#3b6d11" : "var(--color-text-secondary)", fontWeight: active ? 600 : 400 }}
                         >
-                          {active ? "✓ " : ""}{t}
+                          {active ? <><IcCheck />{" "}</> : null}{t}
                         </button>
                       );
                     })}
@@ -1172,12 +1326,15 @@ export default function App() {
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{log.date}</span>
                   </div>
-                  <DueLabel nextReview={log.nextReview} />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button onClick={() => setEditingLog(log)} style={{ fontSize: 11, color: "var(--color-text-secondary)", background: "none", border: "0.5px solid var(--color-border-secondary)", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit" }}>編集</button>
+                    <DueLabel nextReview={log.nextReview} />
+                  </div>
                 </div>
                 <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.45, marginBottom: 4 }}>{logMainText(log)}</div>
                 {(logBookSub(log) || pageRangeLabel(log)) && (
                   <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {logBookSub(log) && <span>📖 {logBookSub(log)}</span>}
+                    {logBookSub(log) && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><IcBook />{logBookSub(log)}</span>}
                     {pageRangeLabel(log) && <span>{pageRangeLabel(log)}</span>}
                   </div>
                 )}
