@@ -465,19 +465,22 @@ function AnalyticsView({ logs }) {
 // ─── Account Menu ─────────────────────────────────────────────────────────────
 function AccountMenuItem({ icon, label, danger, onClick }) {
   const [hover, setHover] = useState(false);
+  const accent = danger ? "#e24b4a" : "#1d9e75";
   return (
     <button
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
-        padding: "11px 14px", background: hover ? "var(--color-background-secondary)" : "transparent",
-        border: "none", cursor: "pointer", fontSize: 13.5, fontFamily: "inherit",
+        display: "flex", alignItems: "center", gap: 12, textAlign: "left",
+        padding: "10px 12px", margin: "2px 8px", borderRadius: 10, boxSizing: "border-box",
+        width: "calc(100% - 16px)",
+        background: hover ? (danger ? "rgba(226,75,74,0.10)" : "rgba(29,158,117,0.10)") : "transparent",
+        border: "none", cursor: "pointer", fontSize: 14, fontWeight: 500, fontFamily: "inherit",
         color: danger ? "#e24b4a" : "var(--color-text-primary)", transition: "background 0.12s",
       }}
     >
-      <span style={{ width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{icon}</span>
+      <span style={{ width: 30, height: 30, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: hover ? (danger ? "rgba(226,75,74,0.16)" : "rgba(29,158,117,0.16)") : "var(--color-background-secondary)", color: accent, transition: "background 0.12s" }}>{icon}</span>
       {label}
     </button>
   );
@@ -928,18 +931,23 @@ export default function App() {
               </button>
               {accountMenuOpen && (
                 <>
-                  <div onClick={() => setAccountMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.18)", zIndex: 40 }} />
-                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 8, background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 14, boxShadow: "0 10px 32px rgba(0,0,0,0.22)", zIndex: 50, minWidth: 200, overflow: "hidden", textAlign: "left" }}>
-                    <div style={{ padding: "12px 14px", borderBottom: "0.5px solid var(--color-border-tertiary)", display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ width: 34, height: 34, borderRadius: "50%", background: "#1d9e75", color: "#fff", fontSize: 16, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <div onClick={() => setAccountMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,28,0.45)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", zIndex: 40 }} />
+                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 10, background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.34)", zIndex: 50, width: 248, overflow: "hidden", textAlign: "left" }}>
+                    <div style={{ padding: "16px 16px 14px", background: "linear-gradient(135deg, rgba(29,158,117,0.12), rgba(29,158,117,0.02))", display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(135deg, #25b386, #1d9e75)", color: "#fff", fontSize: 19, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 8px rgba(29,158,117,0.4)" }}>
                         {(user?.username || "?").charAt(0).toUpperCase()}
                       </span>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.username}</div>
-                        <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 1 }}>{isAdmin ? "管理者" : "一般ユーザ"}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.username}</div>
+                        <div style={{ marginTop: 3 }}>
+                          <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: isAdmin ? "#d6f5ec" : "#e6f1fb", color: isAdmin ? "#0f6e56" : "#185fa5" }}>
+                            {isAdmin ? "管理者" : "一般ユーザ"}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div style={{ padding: "4px 0" }}>
+                    <div style={{ height: "0.5px", background: "var(--color-border-tertiary)" }} />
+                    <div style={{ padding: "6px 0" }}>
                       <AccountMenuItem icon={IconKey} label="パスワード変更" onClick={() => { setShowPasswordModal(true); setAccountMenuOpen(false); }} />
                       <AccountMenuItem icon={IconLogout} label="ログアウト" danger onClick={() => { setAccountMenuOpen(false); handleLogout(); }} />
                     </div>
