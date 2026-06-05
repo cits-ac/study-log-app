@@ -70,6 +70,15 @@ function pageRangeLabel(log) {
   return "";
 }
 
+// 書籍が必須・項目名が任意になったため、項目名があればそれを主表示、無ければ書籍名を主表示にする
+function logMainText(log) {
+  return log.topic || log.book || log.content;
+}
+// 書籍名を補助行に出すのは、主表示が項目名のとき（重複回避）
+function logBookSub(log) {
+  return log.topic ? log.book : "";
+}
+
 // ─── Auth persistence ─────────────────────────────────────────────────────────
 function loadAuth() {
   try { return JSON.parse(localStorage.getItem("studylog_auth") || "null"); }
@@ -257,10 +266,10 @@ function ReviewCard({ log, onRate }) {
     <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 14, padding: "16px", marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)", lineHeight: 1.45 }}>{log.topic || log.content}</div>
-          {(log.book || pageRangeLabel(log)) && (
+          <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)", lineHeight: 1.45 }}>{logMainText(log)}</div>
+          {(logBookSub(log) || pageRangeLabel(log)) && (
             <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {log.book && <span>📖 {log.book}</span>}
+              {logBookSub(log) && <span>📖 {logBookSub(log)}</span>}
               {pageRangeLabel(log) && <span>{pageRangeLabel(log)}</span>}
             </div>
           )}
@@ -825,7 +834,7 @@ export default function App() {
   };
 
   const handleAddLog = async () => {
-    if (!newLog.topic.trim()) return;
+    if (!newLog.book) return;
     const topic = newLog.topic.trim();
     const book = newLog.book.trim();
     const pageFrom = newLog.pageFrom ? parseInt(newLog.pageFrom, 10) : null;
@@ -834,10 +843,10 @@ export default function App() {
       date: today(),
       subject: null,
       book: book || null,
-      topic,
+      topic: topic || null,
       pageFrom,
       pageTo,
-      content: newLog.content.trim() || topic,
+      content: newLog.content.trim() || topic || book,
       tags: newLog.tags,
       interval: 1,
       ef: 2.5,
@@ -1042,10 +1051,10 @@ export default function App() {
                     <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
                       <span style={{ fontSize: 10, color: "var(--color-text-tertiary)" }}>{log.nextReview}</span>
                     </div>
-                    <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.4 }}>{log.topic || log.content}</div>
-                    {(log.book || pageRangeLabel(log)) && (
+                    <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.4 }}>{logMainText(log)}</div>
+                    {(logBookSub(log) || pageRangeLabel(log)) && (
                       <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}>
-                        {log.book}{log.book && pageRangeLabel(log) ? " · " : ""}{pageRangeLabel(log)}
+                        {logBookSub(log)}{logBookSub(log) && pageRangeLabel(log) ? " · " : ""}{pageRangeLabel(log)}
                       </div>
                     )}
                   </div>
@@ -1068,23 +1077,14 @@ export default function App() {
             {showAddForm && (() => {
               const fieldStyle = { width: "100%", padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "var(--color-background-primary)", color: "var(--color-text-primary)", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" };
               const labelStyle = { fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 4, marginTop: 12 };
-              const canSubmit = newLog.topic.trim();
+              const canSubmit = !!newLog.book;
               return (
               <div style={{ background: "var(--color-background-secondary)", borderRadius: 12, padding: "14px", marginBottom: 14, border: "0.5px solid var(--color-border-tertiary)" }}>
-                {/* 項目名（必須） */}
-                <div style={{ ...labelStyle, marginTop: 0 }}>項目名 <span style={{ color: "#e24b4a" }}>*</span></div>
-                <input
-                  value={newLog.topic}
-                  onChange={(e) => setNewLog((p) => ({ ...p, topic: e.target.value }))}
-                  placeholder="例: 関係代名詞 / 第3章 化学結合"
-                  style={fieldStyle}
-                />
-
-                {/* 書籍・教科書名（事前登録からプルダウン選択） */}
-                <div style={labelStyle}>教科書・書籍名（省略可）</div>
+                {/* 教科書・書籍名（必須・事前登録からプルダウン選択） */}
+                <div style={{ ...labelStyle, marginTop: 0 }}>教科書・書籍名 <span style={{ color: "#e24b4a" }}>*</span></div>
                 {bookNames.length > 0 ? (
                   <select value={newLog.book} onChange={(e) => setNewLog((p) => ({ ...p, book: e.target.value }))} style={fieldStyle}>
-                    <option value="">（選択しない）</option>
+                    <option value="">（選択してください）</option>
                     {bookNames.map((b) => <option key={b}>{b}</option>)}
                   </select>
                 ) : (
@@ -1092,6 +1092,15 @@ export default function App() {
                     「設定」タブから書籍を登録すると選べます
                   </div>
                 )}
+
+                {/* 項目名（省略可） */}
+                <div style={labelStyle}>項目名（省略可）</div>
+                <input
+                  value={newLog.topic}
+                  onChange={(e) => setNewLog((p) => ({ ...p, topic: e.target.value }))}
+                  placeholder="例: 関係代名詞 / 第3章 化学結合"
+                  style={fieldStyle}
+                />
 
                 {/* ページ範囲 */}
                 <div style={labelStyle}>ページ範囲（省略可）</div>
@@ -1165,14 +1174,14 @@ export default function App() {
                   </div>
                   <DueLabel nextReview={log.nextReview} />
                 </div>
-                <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.45, marginBottom: 4 }}>{log.topic || log.content}</div>
-                {(log.book || pageRangeLabel(log)) && (
+                <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.45, marginBottom: 4 }}>{logMainText(log)}</div>
+                {(logBookSub(log) || pageRangeLabel(log)) && (
                   <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {log.book && <span>📖 {log.book}</span>}
+                    {logBookSub(log) && <span>📖 {logBookSub(log)}</span>}
                     {pageRangeLabel(log) && <span>{pageRangeLabel(log)}</span>}
                   </div>
                 )}
-                {log.content && log.content !== log.topic && (
+                {log.content && log.content !== log.topic && log.content !== log.book && (
                   <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginBottom: 6, lineHeight: 1.4 }}>{log.content}</div>
                 )}
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
