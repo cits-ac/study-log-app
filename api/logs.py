@@ -1,4 +1,5 @@
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 import json
 import os
 import sys
@@ -10,7 +11,7 @@ from _utils import service_client, verify_token
 class handler(BaseHTTPRequestHandler):
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
     def _json(self, status, data):
@@ -86,17 +87,41 @@ class handler(BaseHTTPRequestHandler):
             return
         try:
             body = self._body()
-            sb = service_client()
-            q = sb.table("study_logs").update({
+            fields = {
                 "interval": body["interval"],
                 "ef": body["ef"],
                 "next_review": body["next_review"],
                 "review_count": body["review_count"],
-            }).eq("id", body["id"])
+            }
+            # 編集フォームから送られる項目（存在する場合のみ更新）
+            for key in ("date", "subject", "content", "book", "topic", "page_from", "page_to", "tags"):
+                if key in body:
+                    fields[key] = body[key]
+            sb = service_client()
+            q = sb.table("study_logs").update(fields).eq("id", body["id"])
             if role != "admin":
                 q = q.eq("user_id", user_id)
             result = q.execute()
             self._json(200, result.data[0] if result.data else {})
+        except Exception as e:
+            self._json(500, {"error": str(e)})
+
+    def do_DELETE(self):
+        user_id, role = self._auth()
+        if not user_id:
+            return
+        try:
+            qs = parse_qs(urlparse(self.path).query)
+            log_id = qs.get("id", [None])[0]
+            if not log_id:
+                self._json(400, {"error": "idが必要です"})
+                return
+            sb = service_client()
+            q = sb.table("study_logs").delete().eq("id", log_id)
+            if role != "admin":
+                q = q.eq("user_id", user_id)
+            q.execute()
+            self._json(200, {"message": "削除しました"})
         except Exception as e:
             self._json(500, {"error": str(e)})
 

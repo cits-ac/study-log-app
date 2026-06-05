@@ -129,6 +129,14 @@ async function apiUpdateLog(log, token) {
   });
 }
 
+async function apiDeleteLog(id, token) {
+  const res = await fetch(`/api/logs?id=${id}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("削除に失敗しました");
+}
+
 async function apiFetchBooks(token) {
   const res = await fetch("/api/books", { headers: authHeaders(token) });
   if (!res.ok) return [];
@@ -1004,6 +1012,21 @@ export default function App() {
     } catch {}
   };
 
+  const handleDeleteLog = async (log) => {
+    if (!window.confirm(`「${logMainText(log)}」の記録を削除しますか？\nこの操作は取り消せません。`)) return;
+    const prev = logs;
+    setLogs((p) => p.filter((l) => l.id !== log.id));
+    try {
+      await apiDeleteLog(log.id, token);
+      setSavedMsg("記録を削除しました");
+      setTimeout(() => setSavedMsg(""), 3000);
+    } catch {
+      setLogs(prev); // 失敗時はロールバック
+      setSavedMsg("削除に失敗しました");
+      setTimeout(() => setSavedMsg(""), 3000);
+    }
+  };
+
   const requestNotif = async () => {
     if (!("Notification" in window)) { alert("このブラウザはプッシュ通知に対応していません。"); return; }
     const perm = await Notification.requestPermission();
@@ -1328,6 +1351,7 @@ export default function App() {
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <button onClick={() => setEditingLog(log)} style={{ fontSize: 11, color: "var(--color-text-secondary)", background: "none", border: "0.5px solid var(--color-border-secondary)", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit" }}>編集</button>
+                    <button onClick={() => handleDeleteLog(log)} style={{ fontSize: 11, color: "#e24b4a", background: "none", border: "0.5px solid #e24b4a", borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit" }}>削除</button>
                     <DueLabel nextReview={log.nextReview} />
                   </div>
                 </div>
