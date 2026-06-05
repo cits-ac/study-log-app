@@ -1359,24 +1359,24 @@ export default function App() {
             <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
               <MasterListSettings
                 token={token}
-                title="タグ管理"
-                label="タグ"
-                items={tagList}
-                onAdd={apiAddTag}
-                onEdit={apiEditTag}
-                onDelete={apiDeleteTag}
-                onRefresh={refreshTags}
+                title="書籍・教科書管理"
+                label="書籍"
+                items={books}
+                onAdd={apiAddBook}
+                onEdit={apiEditBook}
+                onDelete={apiDeleteBook}
+                onRefresh={refreshBooks}
               />
             </div>
             <MasterListSettings
               token={token}
-              title="書籍・教科書管理"
-              label="書籍"
-              items={books}
-              onAdd={apiAddBook}
-              onEdit={apiEditBook}
-              onDelete={apiDeleteBook}
-              onRefresh={refreshBooks}
+              title="タグ管理"
+              label="タグ"
+              items={tagList}
+              onAdd={apiAddTag}
+              onEdit={apiEditTag}
+              onDelete={apiDeleteTag}
+              onRefresh={refreshTags}
             />
           </div>
         )}
