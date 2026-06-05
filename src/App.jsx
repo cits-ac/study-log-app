@@ -155,6 +155,41 @@ async function apiDeleteSubject(id, token) {
   });
 }
 
+async function apiFetchBooks(token) {
+  const res = await fetch("/api/books", { headers: authHeaders(token) });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+async function apiAddBook(name, token) {
+  const res = await fetch("/api/books", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ name }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `追加に失敗しました (${res.status})`);
+  return data;
+}
+
+async function apiEditBook(id, name, token) {
+  const res = await fetch("/api/books", {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ id, name }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `更新に失敗しました (${res.status})`);
+  return data;
+}
+
+async function apiDeleteBook(id, token) {
+  await fetch(`/api/books?id=${id}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+}
+
 async function apiChangePassword(currentPassword, newPassword, token) {
   const res = await fetch("/api/password", {
     method: "POST",
@@ -426,16 +461,12 @@ function AnalyticsView({ logs }) {
 }
 
 // ─── Password Change ──────────────────────────────────────────────────────────
-function PasswordChange({ token }) {
-  const [open, setOpen] = useState(false);
+function PasswordModal({ token, onClose, onDone }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [msg, setMsg] = useState("");
-
-  const reset = () => { setCurrent(""); setNext(""); setConfirm(""); setError(""); };
 
   const handleSubmit = async () => {
     setError("");
@@ -445,10 +476,8 @@ function PasswordChange({ token }) {
     setSaving(true);
     try {
       await apiChangePassword(current, next, token);
-      reset();
-      setOpen(false);
-      setMsg("パスワードを変更しました");
-      setTimeout(() => setMsg(""), 3000);
+      onDone("パスワードを変更しました");
+      onClose();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -456,36 +485,37 @@ function PasswordChange({ token }) {
     }
   };
 
-  const inputStyle = { width: "100%", padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: "var(--color-background-primary)", color: "var(--color-text-primary)", boxSizing: "border-box" };
+  const inputStyle = { width: "100%", padding: "10px 12px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, fontSize: 15, fontFamily: "inherit", background: "var(--color-background-primary)", color: "var(--color-text-primary)", boxSizing: "border-box" };
 
   return (
-    <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: open ? 12 : 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)" }}>パスワード変更</div>
-        <button onClick={() => { setOpen(!open); reset(); }} style={{ fontSize: 13, fontWeight: 600, color: "#1d9e75", background: "none", border: "0.5px solid #1d9e75", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit" }}>
-          {open ? "キャンセル" : "変更する"}
-        </button>
-      </div>
-
-      {msg && <div style={{ fontSize: 13, color: "#3b6d11", background: "#e3f5d0", borderRadius: 8, padding: "8px 12px", marginTop: 10 }}>{msg}</div>}
-
-      {open && (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 100 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 360, background: "var(--color-background-primary)", borderRadius: 16, padding: 20, fontFamily: "inherit" }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text-primary)" }}>パスワード変更</div>
+          <button onClick={onClose} style={{ fontSize: 20, color: "var(--color-text-tertiary)", background: "none", border: "none", cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {error && <div style={{ fontSize: 13, color: "#a32d2d", background: "#fcebeb", borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
           <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="現在のパスワード" autoComplete="current-password" style={inputStyle} />
           <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="新しいパスワード（6文字以上）" autoComplete="new-password" style={inputStyle} />
           <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="新しいパスワード（確認）" autoComplete="new-password" onKeyDown={(e) => e.key === "Enter" && handleSubmit()} style={inputStyle} />
-          <button onClick={handleSubmit} disabled={saving} style={{ padding: "10px", background: saving ? "#aaa" : "#1d9e75", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: saving ? "default" : "pointer", fontFamily: "inherit" }}>
+          <button onClick={handleSubmit} disabled={saving} style={{ marginTop: 4, padding: "11px", background: saving ? "#aaa" : "#1d9e75", color: "#fff", border: "none", borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: saving ? "default" : "pointer", fontFamily: "inherit" }}>
             {saving ? "変更中..." : "パスワードを変更"}
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-// ─── Subjects Settings ────────────────────────────────────────────────────────
-function SubjectsSettings({ token, subjects, onRefresh }) {
+// ─── Master List Settings（科目・書籍など汎用のCRUDリスト） ──────────────────────
+function MasterListSettings({ token, title, label, items, onAdd, onEdit, onDelete, onRefresh }) {
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
@@ -497,7 +527,7 @@ function SubjectsSettings({ token, subjects, onRefresh }) {
     setSaving(true);
     setError("");
     try {
-      await apiAddSubject(newName.trim(), token);
+      await onAdd(newName.trim(), token);
       setNewName("");
       await onRefresh();
     } catch (e) {
@@ -512,7 +542,7 @@ function SubjectsSettings({ token, subjects, onRefresh }) {
     setSaving(true);
     setError("");
     try {
-      await apiEditSubject(id, editName.trim(), token);
+      await onEdit(id, editName.trim(), token);
       setEditingId(null);
       await onRefresh();
     } catch (e) {
@@ -523,9 +553,9 @@ function SubjectsSettings({ token, subjects, onRefresh }) {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("この科目を削除しますか？")) return;
+    if (!window.confirm(`この${label}を削除しますか？`)) return;
     try {
-      await apiDeleteSubject(id, token);
+      await onDelete(id, token);
       await onRefresh();
     } catch {
       setError("削除に失敗しました");
@@ -534,7 +564,7 @@ function SubjectsSettings({ token, subjects, onRefresh }) {
 
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 12 }}>科目管理</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 12 }}>{title}</div>
       {error && (
         <div style={{ fontSize: 13, color: "#a32d2d", background: "#fcebeb", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>{error}</div>
       )}
@@ -543,7 +573,7 @@ function SubjectsSettings({ token, subjects, onRefresh }) {
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          placeholder="新しい科目名"
+          placeholder={`新しい${label}名`}
           style={{ flex: 1, padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: "var(--color-background-primary)", color: "var(--color-text-primary)" }}
         />
         <button
@@ -554,12 +584,12 @@ function SubjectsSettings({ token, subjects, onRefresh }) {
           追加
         </button>
       </div>
-      {subjects.length === 0 ? (
+      {items.length === 0 ? (
         <div style={{ fontSize: 13, color: "var(--color-text-tertiary)", textAlign: "center", padding: "20px 0" }}>
-          科目がまだありません。上から追加してください。
+          {label}がまだありません。上から追加してください。
         </div>
       ) : (
-        subjects.map((s) => (
+        items.map((s) => (
           <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
             {editingId === s.id ? (
               <>
@@ -686,12 +716,15 @@ export default function App() {
   const [tab, setTab] = useState("today");
   const [logs, setLogs] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ratedToday, setRatedToday] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLog, setNewLog] = useState({ subject: "", book: "", topic: "", pageFrom: "", pageTo: "", content: "", tags: "" });
   const [savedMsg, setSavedMsg] = useState("");
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const token = auth?.token;
   const user = auth?.user;
@@ -704,13 +737,21 @@ export default function App() {
     return data;
   }, [token]);
 
+  const refreshBooks = useCallback(async () => {
+    if (!token) return [];
+    const data = await apiFetchBooks(token);
+    setBooks(data);
+    return data;
+  }, [token]);
+
   useEffect(() => {
     if (!auth) { setLoading(false); return; }
     setLoading(true);
-    Promise.all([apiFetchLogs(token), apiFetchSubjects(token)])
-      .then(([fetchedLogs, fetchedSubjects]) => {
+    Promise.all([apiFetchLogs(token), apiFetchSubjects(token), apiFetchBooks(token)])
+      .then(([fetchedLogs, fetchedSubjects, fetchedBooks]) => {
         setLogs(fetchedLogs);
         setSubjects(fetchedSubjects);
+        setBooks(fetchedBooks);
         if (fetchedSubjects.length > 0) {
           setNewLog((p) => ({ ...p, subject: fetchedSubjects[0].name }));
         }
@@ -730,6 +771,7 @@ export default function App() {
     setAuth(null);
     setLogs([]);
     setSubjects([]);
+    setBooks([]);
     setTab("today");
     setLoading(true);
   };
@@ -810,8 +852,7 @@ export default function App() {
   }
 
   const subjectNames = subjects.map((s) => s.name);
-  // 過去に入力した書籍名（オートコンプリート用）
-  const bookOptions = [...new Set(logs.map((l) => l.book).filter(Boolean))];
+  const bookNames = books.map((b) => b.name);
 
   const tabs = [
     { key: "today", label: `今日${dueToday.length > 0 ? `(${dueToday.length})` : ""}` },
@@ -824,6 +865,13 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 420, margin: "0 auto", padding: "0 0 40px", fontFamily: "'Noto Sans JP', 'Hiragino Sans', sans-serif" }}>
+      {showPasswordModal && (
+        <PasswordModal
+          token={token}
+          onClose={() => setShowPasswordModal(false)}
+          onDone={(m) => { setSavedMsg(m); setTimeout(() => setSavedMsg(""), 3000); }}
+        />
+      )}
       {/* Header */}
       <div style={{ padding: "20px 16px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
@@ -832,13 +880,37 @@ export default function App() {
             <div style={{ fontSize: 12, color: "var(--color-text-tertiary)" }}>エビングハウス忘却曲線で最適復習</div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginBottom: 2, display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
-              {user?.username}
-              {isAdmin && <Badge color="teal">管理者</Badge>}
+            <div style={{ position: "relative", display: "inline-block" }}>
+              <button
+                onClick={() => setAccountMenuOpen((v) => !v)}
+                style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: "2px 0", marginLeft: "auto", color: "var(--color-text-secondary)" }}
+              >
+                {isAdmin && <Badge color="teal">管理者</Badge>}
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{user?.username}</span>
+                <span style={{ fontSize: 9, color: "var(--color-text-tertiary)", transform: accountMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▼</span>
+              </button>
+              {accountMenuOpen && (
+                <>
+                  <div onClick={() => setAccountMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 6, background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 150, overflow: "hidden" }}>
+                    <button
+                      onClick={() => { setShowPasswordModal(true); setAccountMenuOpen(false); }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 14px", background: "none", border: "none", borderBottom: "0.5px solid var(--color-border-tertiary)", cursor: "pointer", fontSize: 13, color: "var(--color-text-primary)", fontFamily: "inherit" }}
+                    >
+                      🔑 パスワード変更
+                    </button>
+                    <button
+                      onClick={() => { setAccountMenuOpen(false); handleLogout(); }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#e24b4a", fontFamily: "inherit" }}
+                    >
+                      ログアウト
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#1d9e75" }}>{totalStreak}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#1d9e75", marginTop: 4 }}>{totalStreak}</div>
             <div style={{ fontSize: 10, color: "var(--color-text-tertiary)" }}>連続日数</div>
-            <button onClick={handleLogout} style={{ fontSize: 11, color: "var(--color-text-tertiary)", background: "none", border: "none", cursor: "pointer", marginTop: 2, padding: 0 }}>ログアウト</button>
           </div>
         </div>
 
@@ -966,18 +1038,18 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 書籍・教科書名（過去入力をオートコンプリート） */}
+                {/* 書籍・教科書名（事前登録からプルダウン選択） */}
                 <div style={labelStyle}>教科書・書籍名（省略可）</div>
-                <input
-                  value={newLog.book}
-                  onChange={(e) => setNewLog((p) => ({ ...p, book: e.target.value }))}
-                  placeholder="例: システム英単語"
-                  list="book-options"
-                  style={fieldStyle}
-                />
-                <datalist id="book-options">
-                  {bookOptions.map((b) => <option key={b} value={b} />)}
-                </datalist>
+                {bookNames.length > 0 ? (
+                  <select value={newLog.book} onChange={(e) => setNewLog((p) => ({ ...p, book: e.target.value }))} style={fieldStyle}>
+                    <option value="">（選択しない）</option>
+                    {bookNames.map((b) => <option key={b}>{b}</option>)}
+                  </select>
+                ) : (
+                  <div style={{ fontSize: 12, color: "#854f0b", background: "#fff7ed", borderRadius: 8, padding: "8px 12px" }}>
+                    「設定」タブから書籍を登録すると選べます
+                  </div>
+                )}
 
                 {/* 項目名（必須） */}
                 <div style={labelStyle}>項目名 <span style={{ color: "#e24b4a" }}>*</span></div>
@@ -1071,16 +1143,32 @@ export default function App() {
         {/* SETTINGS */}
         {tab === "settings" && (
           <div>
-            <PasswordChange token={token} />
-            <SubjectsSettings
+            <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
+              <MasterListSettings
+                token={token}
+                title="科目管理"
+                label="科目"
+                items={subjects}
+                onAdd={apiAddSubject}
+                onEdit={apiEditSubject}
+                onDelete={apiDeleteSubject}
+                onRefresh={async () => {
+                  const data = await refreshSubjects();
+                  if (data?.length > 0 && !newLog.subject) {
+                    setNewLog((p) => ({ ...p, subject: data[0].name }));
+                  }
+                }}
+              />
+            </div>
+            <MasterListSettings
               token={token}
-              subjects={subjects}
-              onRefresh={async () => {
-                const data = await refreshSubjects();
-                if (data?.length > 0 && !newLog.subject) {
-                  setNewLog((p) => ({ ...p, subject: data[0].name }));
-                }
-              }}
+              title="書籍・教科書管理"
+              label="書籍"
+              items={books}
+              onAdd={apiAddBook}
+              onEdit={apiEditBook}
+              onDelete={apiDeleteBook}
+              onRefresh={refreshBooks}
             />
           </div>
         )}
