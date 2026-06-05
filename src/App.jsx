@@ -891,8 +891,8 @@ export default function App() {
               </button>
               {accountMenuOpen && (
                 <>
-                  <div onClick={() => setAccountMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 6, background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 150, overflow: "hidden" }}>
+                  <div onClick={() => setAccountMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.25)", zIndex: 40 }} />
+                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 6, background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,0.28)", zIndex: 50, minWidth: 168, overflow: "hidden" }}>
                     <button
                       onClick={() => { setShowPasswordModal(true); setAccountMenuOpen(false); }}
                       style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 14px", background: "none", border: "none", borderBottom: "0.5px solid var(--color-border-tertiary)", cursor: "pointer", fontSize: 13, color: "var(--color-text-primary)", fontFamily: "inherit" }}
