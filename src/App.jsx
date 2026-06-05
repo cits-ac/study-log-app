@@ -35,7 +35,13 @@ function daysUntil(dateStr) {
 
 // ─── DB <-> App 変換 ──────────────────────────────────────────────────────────
 function fromDB(log) {
-  return { ...log, nextReview: log.next_review, reviewCount: log.review_count };
+  return {
+    ...log,
+    nextReview: log.next_review,
+    reviewCount: log.review_count,
+    pageFrom: log.page_from,
+    pageTo: log.page_to,
+  };
 }
 
 function toDB(log) {
@@ -44,12 +50,24 @@ function toDB(log) {
     date: log.date,
     subject: log.subject,
     content: log.content,
+    book: log.book,
+    topic: log.topic,
+    page_from: log.pageFrom,
+    page_to: log.pageTo,
     tags: log.tags,
     interval: log.interval,
     ef: log.ef,
     next_review: log.nextReview,
     review_count: log.reviewCount,
   };
+}
+
+// 書籍名・ページ範囲を読みやすい文字列に
+function pageRangeLabel(log) {
+  if (log.pageFrom && log.pageTo) return `p.${log.pageFrom}–${log.pageTo}`;
+  if (log.pageFrom) return `p.${log.pageFrom}〜`;
+  if (log.pageTo) return `〜p.${log.pageTo}`;
+  return "";
 }
 
 // ─── Auth persistence ─────────────────────────────────────────────────────────
@@ -137,6 +155,17 @@ async function apiDeleteSubject(id, token) {
   });
 }
 
+async function apiChangePassword(currentPassword, newPassword, token) {
+  const res = await fetch("/api/password", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `変更に失敗しました (${res.status})`);
+  return data;
+}
+
 async function apiFetchUsers(token) {
   const res = await fetch("/api/users", { headers: authHeaders(token) });
   if (!res.ok) throw new Error("fetch failed");
@@ -194,7 +223,13 @@ function ReviewCard({ log, onRate }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
         <div>
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-secondary)", letterSpacing: "0.04em", textTransform: "uppercase" }}>{log.subject}</span>
-          <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)", marginTop: 2, lineHeight: 1.45 }}>{log.content}</div>
+          <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)", marginTop: 2, lineHeight: 1.45 }}>{log.topic || log.content}</div>
+          {(log.book || pageRangeLabel(log)) && (
+            <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {log.book && <span>📖 {log.book}</span>}
+              {pageRangeLabel(log) && <span>{pageRangeLabel(log)}</span>}
+            </div>
+          )}
         </div>
         <DueLabel nextReview={log.nextReview} />
       </div>
@@ -384,6 +419,65 @@ function AnalyticsView({ logs }) {
             </div>
           ))}
           <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 6 }}>EF: 1.3（低）→ 3.0（高）。高いほど定着している科目</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Password Change ──────────────────────────────────────────────────────────
+function PasswordChange({ token }) {
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const reset = () => { setCurrent(""); setNext(""); setConfirm(""); setError(""); };
+
+  const handleSubmit = async () => {
+    setError("");
+    if (!current || !next) { setError("すべての項目を入力してください"); return; }
+    if (next.length < 6) { setError("新しいパスワードは6文字以上にしてください"); return; }
+    if (next !== confirm) { setError("新しいパスワードが一致しません"); return; }
+    setSaving(true);
+    try {
+      await apiChangePassword(current, next, token);
+      reset();
+      setOpen(false);
+      setMsg("パスワードを変更しました");
+      setTimeout(() => setMsg(""), 3000);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputStyle = { width: "100%", padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: "var(--color-background-primary)", color: "var(--color-text-primary)", boxSizing: "border-box" };
+
+  return (
+    <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: open ? 12 : 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-secondary)" }}>パスワード変更</div>
+        <button onClick={() => { setOpen(!open); reset(); }} style={{ fontSize: 13, fontWeight: 600, color: "#1d9e75", background: "none", border: "0.5px solid #1d9e75", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit" }}>
+          {open ? "キャンセル" : "変更する"}
+        </button>
+      </div>
+
+      {msg && <div style={{ fontSize: 13, color: "#3b6d11", background: "#e3f5d0", borderRadius: 8, padding: "8px 12px", marginTop: 10 }}>{msg}</div>}
+
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {error && <div style={{ fontSize: 13, color: "#a32d2d", background: "#fcebeb", borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+          <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="現在のパスワード" autoComplete="current-password" style={inputStyle} />
+          <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="新しいパスワード（6文字以上）" autoComplete="new-password" style={inputStyle} />
+          <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="新しいパスワード（確認）" autoComplete="new-password" onKeyDown={(e) => e.key === "Enter" && handleSubmit()} style={inputStyle} />
+          <button onClick={handleSubmit} disabled={saving} style={{ padding: "10px", background: saving ? "#aaa" : "#1d9e75", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: saving ? "default" : "pointer", fontFamily: "inherit" }}>
+            {saving ? "変更中..." : "パスワードを変更"}
+          </button>
         </div>
       )}
     </div>
@@ -595,7 +689,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [ratedToday, setRatedToday] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newLog, setNewLog] = useState({ subject: "", content: "", tags: "" });
+  const [newLog, setNewLog] = useState({ subject: "", book: "", topic: "", pageFrom: "", pageTo: "", content: "", tags: "" });
   const [savedMsg, setSavedMsg] = useState("");
   const [notifEnabled, setNotifEnabled] = useState(false);
 
@@ -655,11 +749,19 @@ export default function App() {
   };
 
   const handleAddLog = async () => {
-    if (!newLog.content.trim() || !newLog.subject) return;
+    if (!newLog.topic.trim() || !newLog.subject) return;
+    const topic = newLog.topic.trim();
+    const book = newLog.book.trim();
+    const pageFrom = newLog.pageFrom ? parseInt(newLog.pageFrom, 10) : null;
+    const pageTo = newLog.pageTo ? parseInt(newLog.pageTo, 10) : null;
     const entry = {
       date: today(),
       subject: newLog.subject,
-      content: newLog.content.trim(),
+      book: book || null,
+      topic,
+      pageFrom,
+      pageTo,
+      content: newLog.content.trim() || topic,
       tags: newLog.tags ? newLog.tags.split(/[,、\s]+/).filter(Boolean) : [newLog.subject],
       interval: 1,
       ef: 2.5,
@@ -669,7 +771,8 @@ export default function App() {
     try {
       const created = await apiCreateLog(entry, token);
       setLogs((prev) => [created, ...prev]);
-      setNewLog((p) => ({ ...p, content: "", tags: "" }));
+      // 書籍名は次の記録でも使い回せるよう残す
+      setNewLog((p) => ({ ...p, topic: "", pageFrom: "", pageTo: "", content: "", tags: "" }));
       setShowAddForm(false);
       setSavedMsg("記録しました！次回復習: 明日");
       setTimeout(() => setSavedMsg(""), 3000);
@@ -707,6 +810,8 @@ export default function App() {
   }
 
   const subjectNames = subjects.map((s) => s.name);
+  // 過去に入力した書籍名（オートコンプリート用）
+  const bookOptions = [...new Set(logs.map((l) => l.book).filter(Boolean))];
 
   const tabs = [
     { key: "today", label: `今日${dueToday.length > 0 ? `(${dueToday.length})` : ""}` },
@@ -820,7 +925,12 @@ export default function App() {
                       <Badge color="gray">{log.subject}</Badge>
                       <span style={{ fontSize: 10, color: "var(--color-text-tertiary)" }}>{log.nextReview}</span>
                     </div>
-                    <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.4 }}>{log.content}</div>
+                    <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.4 }}>{log.topic || log.content}</div>
+                    {(log.book || pageRangeLabel(log)) && (
+                      <div style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+                        {log.book}{log.book && pageRangeLabel(log) ? " · " : ""}{pageRangeLabel(log)}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
@@ -838,27 +948,94 @@ export default function App() {
               </button>
             </div>
 
-            {showAddForm && (
+            {showAddForm && (() => {
+              const fieldStyle = { width: "100%", padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "var(--color-background-primary)", color: "var(--color-text-primary)", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" };
+              const labelStyle = { fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 4, marginTop: 12 };
+              const canSubmit = newLog.subject && newLog.topic.trim();
+              return (
               <div style={{ background: "var(--color-background-secondary)", borderRadius: 12, padding: "14px", marginBottom: 14, border: "0.5px solid var(--color-border-tertiary)" }}>
-                <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 4 }}>科目</div>
+                {/* 科目 */}
+                <div style={{ ...labelStyle, marginTop: 0 }}>科目</div>
                 {subjectNames.length > 0 ? (
-                  <select value={newLog.subject} onChange={(e) => setNewLog((p) => ({ ...p, subject: e.target.value }))} style={{ width: "100%", marginBottom: 10, padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "var(--color-background-primary)", color: "var(--color-text-primary)", fontSize: 14, fontFamily: "inherit" }}>
+                  <select value={newLog.subject} onChange={(e) => setNewLog((p) => ({ ...p, subject: e.target.value }))} style={fieldStyle}>
                     {subjectNames.map((s) => <option key={s}>{s}</option>)}
                   </select>
                 ) : (
-                  <div style={{ fontSize: 13, color: "#854f0b", background: "#fff7ed", borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, color: "#854f0b", background: "#fff7ed", borderRadius: 8, padding: "8px 12px" }}>
                     「設定」タブから科目を追加してください
                   </div>
                 )}
-                <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 4 }}>今日の学習内容</div>
-                <textarea value={newLog.content} onChange={(e) => setNewLog((p) => ({ ...p, content: e.target.value }))} placeholder="例: 英単語 p.30〜50、関係代名詞を復習した" rows={3} style={{ width: "100%", marginBottom: 10, padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "var(--color-background-primary)", color: "var(--color-text-primary)", fontSize: 14, fontFamily: "inherit", resize: "none", boxSizing: "border-box" }} />
-                <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 4 }}>タグ（カンマ区切り・省略可）</div>
-                <input value={newLog.tags} onChange={(e) => setNewLog((p) => ({ ...p, tags: e.target.value }))} placeholder="例: 単語, 試験, 文法" style={{ width: "100%", marginBottom: 12, padding: "8px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "var(--color-background-primary)", color: "var(--color-text-primary)", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box" }} />
-                <button onClick={handleAddLog} disabled={!newLog.subject || !newLog.content.trim()} style={{ width: "100%", padding: "10px", background: !newLog.subject || !newLog.content.trim() ? "#aaa" : "#1d9e75", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+
+                {/* 書籍・教科書名（過去入力をオートコンプリート） */}
+                <div style={labelStyle}>教科書・書籍名（省略可）</div>
+                <input
+                  value={newLog.book}
+                  onChange={(e) => setNewLog((p) => ({ ...p, book: e.target.value }))}
+                  placeholder="例: システム英単語"
+                  list="book-options"
+                  style={fieldStyle}
+                />
+                <datalist id="book-options">
+                  {bookOptions.map((b) => <option key={b} value={b} />)}
+                </datalist>
+
+                {/* 項目名（必須） */}
+                <div style={labelStyle}>項目名 <span style={{ color: "#e24b4a" }}>*</span></div>
+                <input
+                  value={newLog.topic}
+                  onChange={(e) => setNewLog((p) => ({ ...p, topic: e.target.value }))}
+                  placeholder="例: 関係代名詞 / 第3章 化学結合"
+                  style={fieldStyle}
+                />
+
+                {/* ページ範囲 */}
+                <div style={labelStyle}>ページ範囲（省略可）</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={newLog.pageFrom}
+                    onChange={(e) => setNewLog((p) => ({ ...p, pageFrom: e.target.value }))}
+                    placeholder="開始"
+                    style={{ ...fieldStyle, textAlign: "center" }}
+                  />
+                  <span style={{ color: "var(--color-text-tertiary)", fontSize: 14 }}>〜</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={newLog.pageTo}
+                    onChange={(e) => setNewLog((p) => ({ ...p, pageTo: e.target.value }))}
+                    placeholder="終了"
+                    style={{ ...fieldStyle, textAlign: "center" }}
+                  />
+                  <span style={{ color: "var(--color-text-tertiary)", fontSize: 13, whiteSpace: "nowrap" }}>ページ</span>
+                </div>
+
+                {/* メモ */}
+                <div style={labelStyle}>メモ（省略可）</div>
+                <textarea
+                  value={newLog.content}
+                  onChange={(e) => setNewLog((p) => ({ ...p, content: e.target.value }))}
+                  placeholder="覚えにくかった点、間違えた箇所など"
+                  rows={2}
+                  style={{ ...fieldStyle, resize: "none" }}
+                />
+
+                {/* タグ */}
+                <div style={labelStyle}>タグ（カンマ区切り・省略可）</div>
+                <input
+                  value={newLog.tags}
+                  onChange={(e) => setNewLog((p) => ({ ...p, tags: e.target.value }))}
+                  placeholder="例: 単語, 試験, 文法"
+                  style={fieldStyle}
+                />
+
+                <button onClick={handleAddLog} disabled={!canSubmit} style={{ width: "100%", marginTop: 16, padding: "10px", background: !canSubmit ? "#aaa" : "#1d9e75", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: canSubmit ? "pointer" : "default", fontFamily: "inherit" }}>
                   記録して復習スケジュールを設定
                 </button>
               </div>
-            )}
+              );
+            })()}
 
             {allLogs.map((log) => (
               <div key={log.id} style={{ padding: "12px 0", borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
@@ -869,7 +1046,16 @@ export default function App() {
                   </div>
                   <DueLabel nextReview={log.nextReview} />
                 </div>
-                <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.45, marginBottom: 6 }}>{log.content}</div>
+                <div style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.45, marginBottom: 4 }}>{log.topic || log.content}</div>
+                {(log.book || pageRangeLabel(log)) && (
+                  <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {log.book && <span>📖 {log.book}</span>}
+                    {pageRangeLabel(log) && <span>{pageRangeLabel(log)}</span>}
+                  </div>
+                )}
+                {log.content && log.content !== log.topic && (
+                  <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginBottom: 6, lineHeight: 1.4 }}>{log.content}</div>
+                )}
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {log.tags.map((t) => <Badge key={t}>{t}</Badge>)}
                   <span style={{ fontSize: 11, color: "var(--color-text-tertiary)", alignSelf: "center", marginLeft: 4 }}>復習間隔: {log.interval}日 · {log.reviewCount}回済</span>
@@ -884,16 +1070,19 @@ export default function App() {
 
         {/* SETTINGS */}
         {tab === "settings" && (
-          <SubjectsSettings
-            token={token}
-            subjects={subjects}
-            onRefresh={async () => {
-              const data = await refreshSubjects();
-              if (data?.length > 0 && !newLog.subject) {
-                setNewLog((p) => ({ ...p, subject: data[0].name }));
-              }
-            }}
-          />
+          <div>
+            <PasswordChange token={token} />
+            <SubjectsSettings
+              token={token}
+              subjects={subjects}
+              onRefresh={async () => {
+                const data = await refreshSubjects();
+                if (data?.length > 0 && !newLog.subject) {
+                  setNewLog((p) => ({ ...p, subject: data[0].name }));
+                }
+              }}
+            />
+          </div>
         )}
 
         {/* ADMIN */}
